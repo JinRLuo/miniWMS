@@ -17,7 +17,8 @@ class Reports {
     enum Period { DAY, WEEK, MONTH }
 
     record Filters(LocalDate from, LocalDate to, String product, String shelf, Stock.Type type, String operator,
-                   String document, Boolean mine, String source, String target) {}
+                   String document, Boolean mine, String source, String target,
+                   Long productId, Long slotId, Long sourceSlotId, Long targetSlotId) {}
     record Movement(long id, long createdAt, Stock.Type type, String documentNo, String sku, String product,
                     String slot, int quantity, int beforeQty, int afterQty, String operator, String note) {}
     record Transfer(long id, long createdAt, String transferNo, String sku, String product, String source,
@@ -161,13 +162,17 @@ class Reports {
         List<Object> args = new ArrayList<>();
         if (f.from() != null) add(sql, args, alias + ".created_at>=?", start(f.from()));
         if (f.to() != null) add(sql, args, alias + ".created_at<?", start(f.to().plusDays(1)));
+        if (f.productId() != null) add(sql, args, alias + ".product_id=?", f.productId());
         text(sql, args, f.product(), "p.sku", "p.name", "p.barcode");
         text(sql, args, f.operator(), "u.username", "u.display_name");
         text(sql, args, f.document(), "m.document_no");
         if (transfer) {
+            if (f.sourceSlotId() != null) add(sql, args, "t.source_slot_id=?", f.sourceSlotId());
+            if (f.targetSlotId() != null) add(sql, args, "t.target_slot_id=?", f.targetSlotId());
             text(sql, args, f.source(), "src.code");
             text(sql, args, f.target(), "dst.code");
         } else {
+            if (f.slotId() != null) add(sql, args, "m.slot_id=?", f.slotId());
             if (f.type() != null) add(sql, args, "m.type=?", f.type().name());
             text(sql, args, f.shelf(), "s.code");
         }

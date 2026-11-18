@@ -183,7 +183,7 @@ onBeforeUnmount(() => {
           <StockForm v-else-if="page === 'operations'" :key="operationKey" :slots="slots" :products="products" :mobile="mobile" :initial-mode="preset" :token="token" @changed="refresh" />
           <CatalogView v-else-if="['products', 'shelves', 'inventory'].includes(page)" :page="page" :products="products" :shelves="shelves"
             :slots="slots" :user="user" :mobile="mobile" @changed="refresh" @history="openHistory" />
-          <History v-else-if="page === 'history'" :zone="summary.zone" :mobile="mobile" :initial-slot="historySlot" />
+          <History v-else-if="page === 'history'" :zone="summary.zone" :mobile="mobile" :initial-slot="historySlot" :products="products" :slots="slots" />
           <Reports v-else-if="page === 'reports'" :slots="slots" :today="summary.today" />
           <Users v-else-if="page === 'users' && user.role === 'ADMIN'" @changed="refreshUser" />
         </template>

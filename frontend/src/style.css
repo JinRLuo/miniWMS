@@ -112,6 +112,9 @@ tbody tr:hover:not(.distribution) { background: #fbfdfa; }
 .text-button:hover { color: #0a4a37; text-decoration: underline; }
 .icon-button { background: none; color: var(--muted); border: 1px solid transparent; width: 36px; height: 36px; flex: none; }
 input, select, textarea { min-width: 0; width: 100%; border: 1px solid #cfdfd6; padding: 8px 10px; min-height: 39px; border-radius: 8px; color: var(--text); background: #fff; }
+input[type="date"] { appearance: none; -webkit-appearance: none; min-width: 0; max-width: 100%; min-height: 43px; }
+input[type="date"]::-webkit-date-and-time-value { min-width: 0; text-align: left; }
+input[type="date"]::-webkit-datetime-edit { min-width: 0; padding: 0; }
 input[readonly] { background: #f1f5f3; }
 input::placeholder, textarea::placeholder { color: #677d72; }
 select { padding-right: 23px; }
@@ -173,6 +176,7 @@ dialog::backdrop { background: #102d2480; }
 .qr-label { border: 1px solid var(--stroke); border-radius: 10px; display: grid; justify-items: center; align-content: start; text-align: center; padding: 6px 7px 9px; font-size: 13px; overflow-wrap: anywhere; break-inside: avoid; }
 .qr-label img { width: min(137px, 100%); aspect-ratio: 1; object-fit: contain; }
 .qr-label strong { font-size: 16px; }
+.qr-print-sheet { display: none; }
 .camera { position: relative; width: 100%; aspect-ratio: 4 / 3; min-height: 180px; max-height: 320px; overflow: hidden; background: #0f221a; border-radius: 11px; }
 .camera video { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
 .camera-close { position: absolute; top: 7px; right: 7px; background: white; z-index: 1; }
@@ -223,6 +227,7 @@ dialog::backdrop { background: #102d2480; }
 .mobile-shell .table-scroll .row-actions { flex-wrap: wrap; }
 .mobile-shell .table-scroll .document { max-width: none; text-overflow: clip; }
 .mobile-shell .table-scroll .distribution { background: #f3faf6; }
+.mobile-shell .filter-grid { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 760px), (pointer: coarse) {
   :is(input, select, textarea) { font-size: max(1rem, 16px); }
 }
@@ -254,14 +259,24 @@ dialog::backdrop { background: #102d2480; }
   .metric-icon { width: 34px; height: 34px; }
 }
 @media print {
-  @page { size: A4; margin: 11mm; }
-  body { background: white; }
-  body * { visibility: hidden; }
-  .qr-dialog[open], .qr-dialog[open] .label-grid, .qr-dialog[open] .label-grid * { visibility: visible; }
-  .qr-dialog[open] { position: absolute; inset: 0; margin: 0; width: 100%; max-width: none; max-height: none; overflow: visible; border: 0; box-shadow: none; }
-  .app-shell:has(.qr-dialog[open]) { display: block; }
-  .app-shell:has(.qr-dialog[open]) :is(.sidebar, .topbar, .page > :not(.qr-dialog)) { display: none; }
-  .qr-dialog[open]::backdrop { display: none; }
-  .qr-dialog[open] :is(.dialog-head, .dialog-foot, .qr-download) { display: none; }
-  .label-grid { grid-template-columns: repeat(4, 1fr); }
+  @page { size: A4 portrait; margin: 10mm; }
+  html:has(.qr-print-sheet) { background: white; }
+  body:has(.qr-print-sheet) { margin: 0; background: white; }
+  body:has(.qr-print-sheet) > :not(.qr-print-sheet),
+  body:has(.qr-print-sheet) dialog { display: none !important; }
+  .qr-print-sheet { display: block; }
+  .qr-print-page {
+    height: 276mm;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12mm;
+    break-inside: avoid;
+    break-after: page;
+  }
+  .qr-print-page:last-child { break-after: auto; }
+  .qr-print-page img { display: block; width: 100%; max-width: 190mm; aspect-ratio: 1; image-rendering: pixelated; }
+  .qr-print-page strong { max-width: 100%; color: black; font: 700 48pt/1.1 ui-monospace, monospace; overflow-wrap: anywhere; text-align: center; }
 }

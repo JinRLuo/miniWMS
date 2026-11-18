@@ -21,6 +21,8 @@ const dialog = ref<HTMLDialogElement>()
 const editId = ref<number | null>(null)
 const editCode = ref('')
 const qrSlots = ref<Slot[]>([])
+const printSheet = ref<HTMLDivElement>()
+const printing = ref(false)
 const productForm = ref({ sku: '', name: '', barcode: '', category: '', specification: '', unit: '件', imageUrl: '', warningLevel: null as number | null | '', active: true, note: '' })
 const shelfForm = ref({ code: '', name: '', layerCount: 4 })
 const slotForm = ref({ productId: null as number | null, active: true })
@@ -39,7 +41,19 @@ async function open(kind: typeof editor.value) {
   await nextTick()
   if (dialog.value && !dialog.value.open) dialog.value.showModal()
 }
-function print() { window.print() }
+async function print() {
+  if (printing.value || !printSheet.value) return
+  printing.value = true
+  error.value = ''
+  try {
+    await Promise.all([...printSheet.value.querySelectorAll('img')].map(image => image.decode()))
+    window.print()
+  } catch {
+    error.value = '二维码加载失败，请重新打开标签后再打印。'
+  } finally {
+    printing.value = false
+  }
+}
 function close() { if (!busy.value) dialog.value?.close() }
 function editProduct(p?: Product) {
   editId.value = p?.id ?? null
@@ -169,11 +183,12 @@ async function save() {
       <div class="label-grid">
         <article v-for="slot in qrSlots" :key="slot.id" class="qr-label">
           <img :src="'/api/slots/' + slot.id + '/qrcode'" :alt="slot.code + ' 二维码'">
-          <strong class="code">{{ slot.code }}</strong><span>{{ slot.productName ?? '未绑定' }}</span>
+          <strong class="code">{{ slot.code }}</strong>
           <a class="text-button qr-download" :href="'/api/slots/' + slot.id + '/qrcode'" :download="slot.code + '.png'"><Download :size="15" /> 下载</a>
         </article>
       </div>
-      <div class="dialog-foot"><button class="secondary" @click="close">关闭</button><button class="primary" @click="print"><Printer :size="17" /> 打印标签</button></div>
+      <p v-if="error" class="error panel-message" role="alert">{{ error }}</p>
+      <div class="dialog-foot"><button class="secondary" @click="close">关闭</button><button class="primary" :disabled="printing" @click="print"><Printer :size="17" /> {{ printing ? '正在准备…' : '打印标签' }}</button></div>
     </template>
     <form v-else class="form-stack dialog-form" @submit.prevent="save">
       <fieldset :disabled="busy">
@@ -210,4 +225,12 @@ async function save() {
       <div class="dialog-foot"><button type="button" class="secondary" :disabled="busy" @click="close">取消</button><button class="primary" :disabled="busy">{{ busy ? '保存中…' : '保存' }}</button></div>
     </form>
   </dialog>
+  <Teleport to="body">
+    <div v-if="editor === 'qr'" ref="printSheet" class="qr-print-sheet" aria-hidden="true">
+      <article v-for="slot in qrSlots" :key="slot.id" class="qr-print-page">
+        <img :src="'/api/slots/' + slot.id + '/qrcode'" alt="">
+        <strong>{{ slot.code }}</strong>
+      </article>
+    </div>
+  </Teleport>
 </template>

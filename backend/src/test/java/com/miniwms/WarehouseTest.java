@@ -159,6 +159,45 @@ class WarehouseTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.rows[0].documentNo").value("=CSV-CELL"));
     }
 
+    @Test
+    void selectedProductAndSlotsFilterMovementsTransfersAndCsvExactly() throws Exception {
+        var first = fixture();
+        var second = fixture();
+        for (var fixture : List.of(first, second)) {
+            long source = fixture.slots().get(0).id();
+            long target = fixture.slots().get(1).id();
+            stock.adjust(admin.id(), Stock.Type.IN,
+                    new Stock.Adjust(UUID.randomUUID(), source, fixture.product().id(), 5, null, null));
+            stock.transfer(admin.id(), new Stock.Transfer(UUID.randomUUID(), source, target,
+                    fixture.product().id(), 2, null));
+        }
+        var session = session("admin", ADMIN_PASSWORD);
+        String product = Long.toString(first.product().id());
+        String source = Long.toString(first.slots().get(0).id());
+        String target = Long.toString(first.slots().get(1).id());
+        String otherSource = Long.toString(second.slots().get(0).id());
+
+        mvc.perform(get("/api/stock/movements").session(session).param("productId", product).param("slotId", source))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rows.length()").value(2))
+                .andExpect(jsonPath("$.rows[0].sku").value(first.product().sku()));
+        mvc.perform(get("/api/stock/movements").session(session).param("productId", product).param("slotId", otherSource))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rows.length()").value(0));
+        mvc.perform(get("/api/stock/transfers").session(session).param("productId", product)
+                .param("sourceSlotId", source).param("targetSlotId", target))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rows.length()").value(1))
+                .andExpect(jsonPath("$.rows[0].sku").value(first.product().sku()));
+        mvc.perform(get("/api/stock/transfers").session(session).param("productId", product)
+                .param("sourceSlotId", source).param("targetSlotId", otherSource))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rows.length()").value(0));
+
+        var export = mvc.perform(get("/api/stock/movements.csv").session(session)
+                        .param("productId", product).param("slotId", source))
+                .andExpect(request().asyncStarted()).andReturn();
+        var csv = mvc.perform(asyncDispatch(export)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(csv).contains(first.product().sku()).doesNotContain(second.product().sku());
+    }
+
     private boolean outbound(CountDownLatch start, long actor, long slot, long product) throws InterruptedException {
         start.await();
         try {

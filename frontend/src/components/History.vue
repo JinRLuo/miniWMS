@@ -2,11 +2,15 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ChevronLeft, ChevronRight, Download, Search } from 'lucide-vue-next'
 import { api, errorMessage, params } from '../api'
-import { dateTime, typeLabel, type Movement, type Page, type Transfer } from '../model'
+import { dateTime, typeLabel, type Movement, type Page, type Product, type Slot, type Transfer } from '../model'
 
-const props = defineProps<{ zone: string; mobile: boolean; initialSlot: string }>()
+const props = defineProps<{ zone: string; mobile: boolean; initialSlot: string; products: Product[]; slots: Slot[] }>()
 const tab = ref<'movements' | 'transfers'>('movements')
-const form = ref({ from: '', to: '', product: '', shelf: props.initialSlot, type: '', operator: '', document: '', source: '', target: '' })
+const form = ref({
+  from: '', to: '', productId: '' as number | '',
+  slotId: props.slots.find(slot => slot.code === props.initialSlot)?.id ?? '' as number | '',
+  type: '', operator: '', document: '', sourceSlotId: '' as number | '', targetSlotId: '' as number | '',
+})
 const applied = ref({ ...form.value })
 const movements = ref<Movement[]>([])
 const transfers = ref<Transfer[]>([])
@@ -42,7 +46,10 @@ async function load() {
 function apply() { applied.value = { ...form.value }; page.value = 1; void load() }
 function choose(value: typeof tab.value) { tab.value = value; apply() }
 function paginate(delta: number) { page.value += delta; void load() }
-watch(() => props.initialSlot, slot => { form.value.shelf = slot; choose('movements') })
+watch(() => props.initialSlot, code => {
+  form.value.slotId = props.slots.find(slot => slot.code === code)?.id ?? ''
+  choose('movements')
+})
 onMounted(load)
 </script>
 
@@ -58,15 +65,27 @@ onMounted(load)
     <form class="filter-grid" @submit.prevent="apply">
       <label class="field">开始日期<input v-model="form.from" type="date"></label>
       <label class="field">结束日期<input v-model="form.to" type="date"></label>
-      <label class="field">商品<input v-model.trim="form.product" placeholder="名称 / SKU / 条码" maxlength="160"></label>
+      <label class="field">商品<select v-model="form.productId">
+        <option value="">全部商品</option>
+        <option v-for="product in products" :key="product.id" :value="product.id">{{ product.sku }} · {{ product.name }}{{ product.active ? '' : '（已停用）' }}</option>
+      </select></label>
       <template v-if="tab === 'movements'">
-        <label class="field">货架层<input v-model.trim="form.shelf" placeholder="如 S01-4" maxlength="160"></label>
+        <label class="field">货架层<select v-model="form.slotId">
+          <option value="">全部货架层</option>
+          <option v-for="slot in slots" :key="slot.id" :value="slot.id">{{ slot.code }}{{ slot.active ? '' : '（已停用）' }}</option>
+        </select></label>
         <label class="field">操作类型<select v-model="form.type"><option value="">全部</option>
           <option v-for="(label, key) in typeLabel" :key="key" :value="key">{{ label }}</option></select></label>
       </template>
       <template v-else>
-        <label class="field">来源货架层<input v-model.trim="form.source" placeholder="如 S01-4" maxlength="160"></label>
-        <label class="field">目标货架层<input v-model.trim="form.target" placeholder="如 S02-2" maxlength="160"></label>
+        <label class="field">来源货架层<select v-model="form.sourceSlotId">
+          <option value="">全部货架层</option>
+          <option v-for="slot in slots" :key="slot.id" :value="slot.id">{{ slot.code }}{{ slot.active ? '' : '（已停用）' }}</option>
+        </select></label>
+        <label class="field">目标货架层<select v-model="form.targetSlotId">
+          <option value="">全部货架层</option>
+          <option v-for="slot in slots" :key="slot.id" :value="slot.id">{{ slot.code }}{{ slot.active ? '' : '（已停用）' }}</option>
+        </select></label>
       </template>
       <label v-if="!mobile" class="field">操作人<input v-model.trim="form.operator" placeholder="姓名或账号" maxlength="160"></label>
       <label class="field">单据号<input v-model.trim="form.document" maxlength="160"></label>
