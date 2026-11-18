@@ -259,15 +259,16 @@ dialog::backdrop { background: #102d2480; }
   .metric-icon { width: 34px; height: 34px; }
 }
 @media print {
-  @page { size: A4 portrait; margin: 10mm; }
+  @page { size: A4 portrait; margin: 0; }
   html:has(.qr-print-sheet) { background: white; }
   body:has(.qr-print-sheet) { margin: 0; background: white; }
   body:has(.qr-print-sheet) > :not(.qr-print-sheet),
   body:has(.qr-print-sheet) dialog { display: none !important; }
   .qr-print-sheet { display: block; }
   .qr-print-page {
-    height: 276mm;
+    height: 296mm;
     width: 100%;
+    padding: 10mm;
     display: flex;
     flex-direction: column;
     align-items: center;
