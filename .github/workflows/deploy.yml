@@ -1,0 +1,77 @@
+name: Deploy Mini WMS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: miniwms-production
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Test and package backend
+        run: |
+          timestamp=$(git log -1 --format=%cI -- backend)
+          mvn -B -ntp -f backend/pom.xml -Dproject.build.outputTimestamp="$timestamp" verify
+
+      - name: Build frontend
+        run: |
+          npm --prefix frontend ci
+          npm --prefix frontend run build
+
+      - name: Publish production release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MINIWMS_DEPLOY_HOST: ${{ vars.MINIWMS_DEPLOY_HOST }}
+          MINIWMS_DEPLOY_KEY: ${{ secrets.MINIWMS_DEPLOY_KEY }}
+          MINIWMS_DEPLOY_KNOWN_HOSTS: ${{ vars.MINIWMS_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          tip=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          if [[ "$tip" != "$GITHUB_SHA" ]]; then
+            printf 'Skipping %s because main is now at %s\n' "$GITHUB_SHA" "$tip"
+            exit 0
+          fi
+
+          : "${MINIWMS_DEPLOY_HOST:?Set the deployment host repository variable}"
+          : "${MINIWMS_DEPLOY_KEY:?Set the deployment SSH key repository secret}"
+          : "${MINIWMS_DEPLOY_KNOWN_HOSTS:?Set the pinned SSH host key repository variable}"
+
+          umask 077
+          work=$(mktemp -d "$RUNNER_TEMP/miniwms.XXXXXXXX")
+          trap 'rm -rf -- "$work"' EXIT
+          python3 deploy/package-release.py "$work/release.tar.gz"
+          printf '%s\n' "$MINIWMS_DEPLOY_KEY" > "$work/id_ed25519"
+          printf '%s\n' "$MINIWMS_DEPLOY_KNOWN_HOSTS" > "$work/known_hosts"
+          ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=15 -o ServerAliveInterval=15 \
+            -o "UserKnownHostsFile=$work/known_hosts" -i "$work/id_ed25519" \
+            "miniwms-deploy@$MINIWMS_DEPLOY_HOST" < "$work/release.tar.gz"

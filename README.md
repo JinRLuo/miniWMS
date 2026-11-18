@@ -49,6 +49,14 @@ WMS_DEMO=true mvn spring-boot:run
 
 `compose.yaml` 提供应用部署配置。API 加入已有的 MySQL Docker 网络，Web 容器只发布服务器回环端口 `18089`。在目标服务器上设置数据库密码、管理员初始密码及 HTTPS 站点地址，使用 `docker compose up --build -d` 启动，再将 HTTPS 反向代理指向 `127.0.0.1:18089`。如果 API 和数据库在同一 Docker 网络，使用默认容器连接地址即可。MySQL 连接地址和网络名可通过 `WMS_DB_URL`、`WMS_DB_NETWORK` 覆盖。
 
+## GitHub Actions 自动发布
+
+推送或合并到 `main` 后，GitHub Actions 会运行后端测试、构建前端，然后把带校验和的发布包传到线上服务器。也可在 Actions 的 **Deploy Mini WMS** 页面从 `main` 手动触发。
+
+仓库变量 `MINIWMS_DEPLOY_HOST` 和 `MINIWMS_DEPLOY_KNOWN_HOSTS` 指定 SSH 服务器及其公钥。仓库 Secret `MINIWMS_DEPLOY_KEY` 保存专用部署私钥。服务器上的 `miniwms-deploy` 用户通过 SSH 强制命令运行 `/usr/local/sbin/miniwms-deploy`，该文件由 [发布脚本](deploy/publish-release.py) 安装。生产 Compose 配置允许通过 `WMS_RELEASE_JAR` 指定后端 JAR。数据库连接配置存放在服务器的 `/opt/miniwms/.app.env`。
+
+发布串行执行。后端代码有变更时会更新 API 容器。发布后校验 PC 页面、扫码页面、静态资源和 API，健康检查失败会恢复上一应用版本。Flyway 在 API 启动时执行数据库迁移，新增迁移需要兼容上一应用版本。
+
 ## 库存规则
 
 - 每个货架层可绑定一个 SKU，一个 SKU 可存放在多个货架层。商品总库存由各层实时汇总。
