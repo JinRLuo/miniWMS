@@ -76,22 +76,27 @@ onMounted(load)
     <p v-else-if="loading" class="empty" role="status">正在读取记录…</p>
     <p v-else-if="!hasRows" class="empty">没有符合条件的记录。</p>
     <div v-else class="table-scroll">
-      <table v-if="tab === 'movements'">
-        <thead><tr><th>时间 / 单据号</th><th>操作</th><th>商品</th><th>货架层</th><th>数量</th><th>库存变化</th><th>操作人 / 备注</th></tr></thead>
-        <tbody><tr v-for="m in movements" :key="m.id">
-          <td>{{ dateTime(m.createdAt, zone) }}<small class="document" :title="m.documentNo">{{ m.documentNo }}</small></td>
-          <td><span :class="['badge', m.type.toLowerCase()]">{{ typeLabel[m.type] }}</span></td>
-          <td>{{ m.product }}<small class="code">{{ m.sku }}</small></td><td class="code">{{ m.slot }}</td>
-          <td>{{ m.afterQty > m.beforeQty ? '+' : '−' }}{{ m.quantity }}</td><td>{{ m.beforeQty }} → {{ m.afterQty }}</td>
-          <td>{{ m.operator }}<small class="break">{{ m.note }}</small></td>
+      <table v-if="tab === 'movements'" role="table">
+        <thead role="rowgroup"><tr role="row"><th scope="col">时间 / 单据号</th><th scope="col">操作</th><th scope="col">商品</th><th scope="col">货架层</th><th scope="col">数量</th><th scope="col">库存变化</th><th scope="col">操作人 / 备注</th></tr></thead>
+        <tbody role="rowgroup"><tr v-for="m in movements" :key="m.id" role="row">
+          <td role="cell" data-label="时间 / 单据号">{{ dateTime(m.createdAt, zone) }}<small class="document" :title="m.documentNo">{{ m.documentNo }}</small></td>
+          <td role="cell" data-label="操作"><span :class="['badge', m.type.toLowerCase()]">{{ typeLabel[m.type] }}</span></td>
+          <td role="cell" data-label="商品">{{ m.product }}<small class="code">{{ m.sku }}</small></td>
+          <td role="cell" data-label="货架层" class="code">{{ m.slot }}</td>
+          <td role="cell" data-label="数量">{{ m.afterQty > m.beforeQty ? '+' : '−' }}{{ m.quantity }}</td>
+          <td role="cell" data-label="库存变化">{{ m.beforeQty }} → {{ m.afterQty }}</td>
+          <td role="cell" data-label="操作人 / 备注">{{ m.operator }}<small class="break">{{ m.note }}</small></td>
         </tr></tbody>
       </table>
-      <table v-else>
-        <thead><tr><th>时间 / 移库单号</th><th>商品</th><th>来源</th><th>目标</th><th>数量</th><th>操作人 / 备注</th></tr></thead>
-        <tbody><tr v-for="m in transfers" :key="m.id">
-          <td>{{ dateTime(m.createdAt, zone) }}<small class="document" :title="m.transferNo">{{ m.transferNo }}</small></td>
-          <td>{{ m.product }}<small class="code">{{ m.sku }}</small></td><td class="code">{{ m.source }}</td><td class="code">{{ m.target }}</td>
-          <td>{{ m.quantity }}</td><td>{{ m.operator }}<small class="break">{{ m.note }}</small></td>
+      <table v-else role="table">
+        <thead role="rowgroup"><tr role="row"><th scope="col">时间 / 移库单号</th><th scope="col">商品</th><th scope="col">来源</th><th scope="col">目标</th><th scope="col">数量</th><th scope="col">操作人 / 备注</th></tr></thead>
+        <tbody role="rowgroup"><tr v-for="m in transfers" :key="m.id" role="row">
+          <td role="cell" data-label="时间 / 移库单号">{{ dateTime(m.createdAt, zone) }}<small class="document" :title="m.transferNo">{{ m.transferNo }}</small></td>
+          <td role="cell" data-label="商品">{{ m.product }}<small class="code">{{ m.sku }}</small></td>
+          <td role="cell" data-label="来源" class="code">{{ m.source }}</td>
+          <td role="cell" data-label="目标" class="code">{{ m.target }}</td>
+          <td role="cell" data-label="数量">{{ m.quantity }}</td>
+          <td role="cell" data-label="操作人 / 备注">{{ m.operator }}<small class="break">{{ m.note }}</small></td>
         </tr></tbody>
       </table>
     </div>

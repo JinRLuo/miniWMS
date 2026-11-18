@@ -164,7 +164,6 @@ onBeforeUnmount(() => {
         <a v-for="item in navigation" :key="item.id" :href="url(item.id)" :class="{ active: page === item.id }"
           :aria-current="page === item.id ? 'page' : undefined" @click.prevent="navigate(item.id)"><component :is="item.icon" :size="19" />{{ item.name }}</a>
       </nav>
-      <a href="/m" class="mobile-link"><ScanLine :size="18" /> 手机工作台 <ChevronRight :size="16" /></a>
     </aside>
     <div class="workspace">
       <header class="topbar">

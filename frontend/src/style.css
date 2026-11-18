@@ -13,7 +13,7 @@
   --white: #fff;
 }
 *, *::before, *::after { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; }
+body { margin: 0; }
 a { color: inherit; text-decoration: none; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
@@ -37,10 +37,9 @@ svg { flex-shrink: 0; }
 .brand small { display: block; color: #abc6bb; font-weight: 500; letter-spacing: .025em; }
 .brand-icon { display: inline-grid; place-items: center; width: 43px; height: 43px; border-radius: 12px; background: #c2eedc; color: #164b38; flex: none; }
 .side-nav { display: grid; gap: 5px; }
-.side-nav a, .mobile-link { display: flex; align-items: center; gap: 11px; color: #c5d9d0; padding: 11px 12px; border-radius: 9px; font-size: 14px; }
-.side-nav a:hover, .mobile-link:hover { background: #1c4336; color: #fff; }
+.side-nav a { display: flex; align-items: center; gap: 11px; color: #c5d9d0; padding: 11px 12px; border-radius: 9px; font-size: 14px; }
+.side-nav a:hover { background: #1c4336; color: #fff; }
 .side-nav a.active { color: #ecfff6; background: #22634d; font-weight: 700; }
-.mobile-link { margin-top: auto; border: 1px solid #35574b; justify-content: space-between; }
 .workspace { min-width: 0; }
 .topbar { min-height: 67px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 30px; background: #fefffe; border-bottom: 1px solid var(--stroke); }
 .breadcrumb, .profile { display: flex; align-items: center; gap: 10px; font-size: 13px; }
@@ -137,9 +136,9 @@ textarea { resize: vertical; }
 .form-panel, .preview { padding: 19px; }
 .form-panel .tabs { margin-bottom: 18px; }
 .form-panel .tabs button { flex: 1; }
-.form-stack, .form-stack fieldset { display: grid; gap: 14px; margin: 0; }
+.form-stack, .form-stack fieldset { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin: 0; }
 .form-stack fieldset { padding: 0; border: 0; min-width: 0; }
-.field { min-width: 0; display: grid; gap: 5px; align-content: start; font-size: 14px; font-weight: 650; }
+.field { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; align-content: start; font-size: 14px; font-weight: 650; }
 .field :is(input, select, textarea, small) { font-weight: 450; }
 .form-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .mobile-stock-preview { display: grid; gap: 2px; border-radius: 8px; background: #eef6f1; padding: 9px 12px; font-size: 13px; }
@@ -193,16 +192,40 @@ dialog::backdrop { background: #102d2480; }
 .mobile-shell { display: block; }
 .mobile-shell .workspace { max-width: 610px; min-height: 100dvh; margin: auto; background: #f4f7f5; }
 .mobile-shell .topbar { min-height: 60px; padding: 9px 15px; }
-.mobile-shell .page { padding: 17px 13px calc(87px + env(safe-area-inset-bottom)); gap: 13px; }
+.mobile-shell .page { grid-template-columns: minmax(0, 1fr); padding: 17px 13px calc(87px + env(safe-area-inset-bottom)); gap: 13px; }
 .mobile-shell :is(.dashboard-grid, .operation-grid) { grid-template-columns: minmax(0, 1fr); }
 .mobile-shell .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .mobile-shell .hero { padding: 18px; }
 .mobile-shell .hero-graphic { opacity: .24; right: -163px; }
 .mobile-brand { font-size: 18px; }
 .mobile-brand .brand-icon { width: 34px; height: 34px; border-radius: 8px; }
-.mobile-nav { background: #fff; border-top: 1px solid var(--stroke); z-index: 3; display: grid; grid-template-columns: repeat(4, 1fr); position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: min(100%, 610px); padding: 7px 7px calc(7px + env(safe-area-inset-bottom)); }
+.mobile-nav { background: #fff; border-top: 1px solid var(--stroke); z-index: 3; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); position: fixed; bottom: 0; inset-inline: 0; margin-inline: auto; width: min(100%, 610px); padding: 7px 7px calc(7px + env(safe-area-inset-bottom)); }
 .mobile-nav a { color: #506c60; display: grid; gap: 2px; justify-items: center; padding: 5px 1px; font-size: 12px; border-radius: 8px; }
 .mobile-nav a.active { color: #0b684e; background: #e8f6ef; font-weight: 740; }
+.mobile-shell .table-scroll :is(table, tbody) { display: block; white-space: normal; }
+.mobile-shell .table-scroll thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.mobile-shell .table-scroll tbody tr {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+  border-top: 1px solid var(--stroke);
+  padding: 12px 14px;
+}
+.mobile-shell .table-scroll td { min-width: 0; padding: 0; border: 0; overflow-wrap: anywhere; }
+.mobile-shell .table-scroll td:first-child { grid-column: 1 / -1; }
+.mobile-shell .table-scroll td[data-label]::before {
+  display: block;
+  content: attr(data-label);
+  font: 12px/1.4 system-ui, sans-serif;
+  color: var(--muted);
+}
+.mobile-shell .table-scroll .object-cell > div { min-width: 0; }
+.mobile-shell .table-scroll .row-actions { flex-wrap: wrap; }
+.mobile-shell .table-scroll .document { max-width: none; text-overflow: clip; }
+.mobile-shell .table-scroll .distribution { background: #f3faf6; }
+@media (max-width: 760px), (pointer: coarse) {
+  :is(input, select, textarea) { font-size: max(1rem, 16px); }
+}
 @media (max-width: 1020px) {
   .app-shell:not(.mobile-shell) { grid-template-columns: 190px minmax(0, 1fr); }
   .page, .topbar { padding-right: 18px; padding-left: 18px; }
@@ -211,9 +234,9 @@ dialog::backdrop { background: #102d2480; }
 @media (max-width: 760px) {
   .app-shell:not(.mobile-shell) { grid-template-columns: 53px minmax(0, 1fr); }
   .sidebar { padding: 10px 6px; }
-  .sidebar .brand, .side-nav a, .sidebar .mobile-link { font-size: 0; gap: 0; margin-left: 0; margin-right: 0; justify-content: center; padding: 8px 4px; }
+  .sidebar .brand, .side-nav a { font-size: 0; gap: 0; margin-left: 0; margin-right: 0; justify-content: center; padding: 8px 4px; }
   .sidebar .brand { margin-bottom: 14px; }
-  .sidebar .brand small, .mobile-link svg:last-child { display: none; }
+  .sidebar .brand small { display: none; }
   .sidebar .brand-icon { width: 34px; height: 34px; }
   .profile-name { display: none; }
   .dashboard-grid, .operation-grid { grid-template-columns: minmax(0, 1fr); }

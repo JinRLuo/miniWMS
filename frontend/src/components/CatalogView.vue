@@ -107,20 +107,22 @@ async function save() {
       </div>
     </div>
     <div v-if="page === 'products' || (page === 'inventory' && inventoryMode === 'product')" class="table-scroll">
-      <table v-if="filteredProducts.length">
-        <thead><tr><th>商品</th><th>条码</th><th>分类 / 规格</th><th>总库存</th><th>预警值</th><th>状态</th><th>操作</th></tr></thead>
-        <tbody>
+      <table v-if="filteredProducts.length" role="table">
+        <thead role="rowgroup"><tr role="row"><th scope="col">商品</th><th scope="col">条码</th><th scope="col">分类 / 规格</th><th scope="col">总库存</th><th scope="col">预警值</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+        <tbody role="rowgroup">
           <template v-for="p in filteredProducts" :key="p.id">
-            <tr>
-              <td><div class="object-cell"><img v-if="p.imageUrl" :src="p.imageUrl" alt="" loading="lazy" referrerpolicy="no-referrer">
+            <tr role="row">
+              <td role="cell"><div class="object-cell"><img v-if="p.imageUrl" :src="p.imageUrl" alt="" loading="lazy" referrerpolicy="no-referrer">
                 <span v-else class="product-icon"><Boxes :size="17" /></span><div>{{ p.name }}<small class="code">{{ p.sku }}</small></div></div></td>
-              <td>{{ p.barcode || '—' }}</td><td>{{ [p.category, p.specification].filter(Boolean).join(' / ') || '—' }}</td>
-              <td><strong>{{ number(p.quantity) }} {{ p.unit }}</strong></td><td>{{ p.warningLevel ?? '—' }}</td>
-              <td><span :class="['badge', !p.active ? 'neutral' : isLow(p) ? 'out' : 'in']">{{ !p.active ? '已停用' : isLow(p) ? '低库存' : '启用' }}</span></td>
-              <td><div class="row-actions"><button class="text-button" :aria-expanded="expanded === p.id" @click="expanded = expanded === p.id ? null : p.id">库位分布</button>
+              <td role="cell" data-label="条码">{{ p.barcode || '—' }}</td>
+              <td role="cell" data-label="分类 / 规格">{{ [p.category, p.specification].filter(Boolean).join(' / ') || '—' }}</td>
+              <td role="cell" data-label="总库存"><strong>{{ number(p.quantity) }} {{ p.unit }}</strong></td>
+              <td role="cell" data-label="预警值">{{ p.warningLevel ?? '—' }}</td>
+              <td role="cell" data-label="状态"><span :class="['badge', !p.active ? 'neutral' : isLow(p) ? 'out' : 'in']">{{ !p.active ? '已停用' : isLow(p) ? '低库存' : '启用' }}</span></td>
+              <td role="cell"><div class="row-actions"><button class="text-button" :aria-expanded="expanded === p.id" @click="expanded = expanded === p.id ? null : p.id">库位分布</button>
                 <button v-if="page === 'products' && admin" class="text-button" @click="editProduct(p)">编辑</button></div></td>
             </tr>
-            <tr v-if="expanded === p.id" class="distribution"><td colspan="7">
+            <tr v-if="expanded === p.id" class="distribution" role="row"><td colspan="7" role="cell">
               <strong>货架层分布</strong>
               <div v-for="slot in slots.filter(s => s.productId === p.id)" :key="slot.id"><span class="code">{{ slot.code }}</span> {{ number(slot.quantity) }} {{ p.unit }}</div>
               <span v-if="!slots.some(s => s.productId === p.id)" class="muted">暂无绑定货架层。</span>
@@ -140,13 +142,14 @@ async function save() {
       </div>
     </div>
     <div v-else class="table-scroll">
-      <table v-if="filteredSlots.length">
-        <thead><tr><th>货架层</th><th>商品</th><th>当前库存</th><th>状态</th><th>操作</th></tr></thead>
-        <tbody><tr v-for="slot in filteredSlots" :key="slot.id">
-          <td class="code">{{ slot.code }}</td><td>{{ slot.productName ?? '—' }}<small v-if="slot.sku">{{ slot.sku }}</small></td>
-          <td><strong>{{ number(slot.quantity) }} {{ slot.unit || '' }}</strong></td>
-          <td><span :class="['badge', slot.active && slot.productId !== null ? 'in' : 'neutral']">{{ !slot.active ? '已停用' : slot.productId === null ? '空闲' : '已绑定' }}</span></td>
-          <td><div class="row-actions">
+      <table v-if="filteredSlots.length" role="table">
+        <thead role="rowgroup"><tr role="row"><th scope="col">货架层</th><th scope="col">商品</th><th scope="col">当前库存</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+        <tbody role="rowgroup"><tr v-for="slot in filteredSlots" :key="slot.id" role="row">
+          <td role="cell" class="code">{{ slot.code }}</td>
+          <td role="cell" data-label="商品">{{ slot.productName ?? '—' }}<small v-if="slot.sku">{{ slot.sku }}</small></td>
+          <td role="cell" data-label="当前库存"><strong>{{ number(slot.quantity) }} {{ slot.unit || '' }}</strong></td>
+          <td role="cell" data-label="状态"><span :class="['badge', slot.active && slot.productId !== null ? 'in' : 'neutral']">{{ !slot.active ? '已停用' : slot.productId === null ? '空闲' : '已绑定' }}</span></td>
+          <td role="cell"><div class="row-actions">
             <button class="text-button" @click="$emit('history', slot.code)">流水</button>
             <button v-if="page === 'shelves' && admin" class="text-button" @click="editSlot(slot)">{{ slot.productId === null ? '绑定商品' : '编辑' }}</button>
             <button v-if="page === 'shelves' && !mobile" class="text-button" @click="printLabels([slot])"><QrCode :size="16" /> 二维码</button>

@@ -70,13 +70,15 @@ onMounted(async () => {
       <h2>最近操作</h2><button class="text-button" @click="$emit('navigate', 'history')">查看记录 <ArrowRight :size="16" /></button>
     </div>
     <div class="table-scroll">
-      <table v-if="recent.length">
-        <thead><tr><th>操作</th><th>商品</th><th>货架层</th><th>数量</th><th>操作人</th><th>时间</th></tr></thead>
-        <tbody><tr v-for="row in recent" :key="row.id">
-          <td><span :class="['badge', row.type.toLowerCase()]">{{ typeLabel[row.type] }}</span></td>
-          <td>{{ row.product }}<small>{{ row.sku }}</small></td><td class="code">{{ row.slot }}</td>
-          <td>{{ row.afterQty > row.beforeQty ? '+' : '−' }}{{ row.quantity }}</td><td>{{ row.operator }}</td>
-          <td>{{ dateTime(row.createdAt, summary.zone) }}</td>
+      <table v-if="recent.length" role="table">
+        <thead role="rowgroup"><tr role="row"><th scope="col">操作</th><th scope="col">商品</th><th scope="col">货架层</th><th scope="col">数量</th><th scope="col">操作人</th><th scope="col">时间</th></tr></thead>
+        <tbody role="rowgroup"><tr v-for="row in recent" :key="row.id" role="row">
+          <td role="cell"><span :class="['badge', row.type.toLowerCase()]">{{ typeLabel[row.type] }}</span></td>
+          <td role="cell" data-label="商品">{{ row.product }}<small>{{ row.sku }}</small></td>
+          <td role="cell" data-label="货架层" class="code">{{ row.slot }}</td>
+          <td role="cell" data-label="数量">{{ row.afterQty > row.beforeQty ? '+' : '−' }}{{ row.quantity }}</td>
+          <td role="cell" data-label="操作人">{{ row.operator }}</td>
+          <td role="cell" data-label="时间">{{ dateTime(row.createdAt, summary.zone) }}</td>
         </tr></tbody>
       </table>
       <p v-else class="empty">暂无库存操作。</p>
