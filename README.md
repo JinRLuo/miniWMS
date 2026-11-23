@@ -57,6 +57,8 @@ WMS_DEMO=true mvn spring-boot:run
 
 发布串行执行。后端代码有变更时会更新 API 容器。发布后校验 PC 页面、扫码页面、静态资源和 API，健康检查失败会恢复上一应用版本。Flyway 在 API 启动时执行数据库迁移，新增迁移需要兼容上一应用版本。
 
+部署和健康检查成功后，Actions 会通过自部署 Bark 服务 `https://bark.zoomzoom.team` 发送带 GitHub 图标的「Mini WMS 部署成功」通知，内容包含仓库、分支和提交号，点击可打开本次 Actions 运行页面。请先在 Bark App 中添加该服务器，再将该服务器对应的设备 Key 保存为仓库 Secret `BARK_DEVICE_KEY`（Settings → Secrets and variables → Actions → New repository secret），只填写 Key，不包含服务器地址。部署失败或因提交过期而跳过时不会发送成功通知；未配置 Key 时会显示警告并跳过通知，通知发送失败不影响已完成的部署。
+
 ## 库存规则
 
 - 每个货架层可绑定一个 SKU，一个 SKU 可存放在多个货架层。商品总库存由各层实时汇总。
