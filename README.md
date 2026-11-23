@@ -53,11 +53,11 @@ WMS_DEMO=true mvn spring-boot:run
 
 推送或合并到 `main` 后，GitHub Actions 会运行后端测试、构建前端，然后把带校验和的发布包传到线上服务器。也可在 Actions 的 **Deploy Mini WMS** 页面从 `main` 手动触发。
 
-仓库变量 `MINIWMS_DEPLOY_HOST` 和 `MINIWMS_DEPLOY_KNOWN_HOSTS` 指定 SSH 服务器及其公钥。仓库 Secret `MINIWMS_DEPLOY_KEY` 保存专用部署私钥。服务器上的 `miniwms-deploy` 用户通过 SSH 强制命令运行 `/usr/local/sbin/miniwms-deploy`，该文件由 [发布脚本](deploy/publish-release.py) 安装。生产 Compose 配置允许通过 `WMS_RELEASE_JAR` 指定后端 JAR。数据库连接配置存放在服务器的 `/opt/miniwms/.app.env`。
+仓库变量 `MINIWMS_DEPLOY_HOST` 设为服务器公网 IP `43.156.245.251`，`MINIWMS_DEPLOY_KNOWN_HOSTS` 保存该 IP 对应的 SSH 主机公钥。Actions 直接通过公网 IP 连接服务器。仓库 Secret `MINIWMS_DEPLOY_KEY` 保存专用部署私钥。服务器上的 `miniwms-deploy` 用户通过 SSH 强制命令运行 `/usr/local/sbin/miniwms-deploy`，该文件由 [发布脚本](deploy/publish-release.py) 安装。生产 Compose 配置允许通过 `WMS_RELEASE_JAR` 指定后端 JAR。数据库连接配置存放在服务器的 `/opt/miniwms/.app.env`。
 
 发布串行执行。后端代码有变更时会更新 API 容器。发布后校验 PC 页面、扫码页面、静态资源和 API，健康检查失败会恢复上一应用版本。Flyway 在 API 启动时执行数据库迁移，新增迁移需要兼容上一应用版本。
 
-部署和健康检查成功后，Actions 会通过自部署 Bark 服务 `https://bark.zoomzoom.team` 发送带 GitHub 图标的「Mini WMS 部署成功」通知，内容包含仓库、分支和提交号，点击可打开本次 Actions 运行页面。请先在 Bark App 中添加该服务器，再将该服务器对应的设备 Key 保存为仓库 Secret `BARK_DEVICE_KEY`（Settings → Secrets and variables → Actions → New repository secret），只填写 Key，不包含服务器地址。部署失败或因提交过期而跳过时不会发送成功通知；未配置 Key 时会显示警告并跳过通知，通知发送失败不影响已完成的部署。
+Actions 会通过自部署 Bark 服务 `https://bark.zoomzoom.team` 发送带 GitHub 图标的部署结果通知：部署和健康检查成功时发送「Mini WMS 部署成功」，构建、发布或健康检查失败时发送「Mini WMS 部署失败」。内容包含仓库、分支和提交号，点击可打开本次 Actions 运行页面。请先在 Bark App 中添加该服务器，再将该服务器对应的设备 Key 保存为仓库 Secret `BARK_DEVICE_KEY`（Settings → Secrets and variables → Actions → New repository secret），只填写 Key，不包含服务器地址。因提交过期而跳过部署时不发送通知；未配置 Key 时会显示警告并跳过通知，通知发送失败不影响部署结果。
 
 ## 库存规则
 

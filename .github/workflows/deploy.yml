@@ -78,13 +78,14 @@ jobs:
             "miniwms-deploy@$MINIWMS_DEPLOY_HOST" < "$work/release.tar.gz"
           printf 'deployed=true\n' >> "$GITHUB_OUTPUT"
 
-      - name: Notify deployment success via Bark
-        if: success() && steps.deploy.outputs.deployed == 'true'
+      - name: Notify deployment result via Bark
+        if: ${{ !cancelled() && (failure() || steps.deploy.outputs.deployed == 'true') }}
         continue-on-error: true
         timeout-minutes: 1
         shell: python
         env:
           BARK_DEVICE_KEY: ${{ secrets.BARK_DEVICE_KEY }}
+          DEPLOYMENT_STATUS: ${{ job.status }}
         run: |
           import json
           import os
@@ -97,9 +98,10 @@ jobs:
               sys.exit(0)
 
           repository = os.environ["GITHUB_REPOSITORY"]
+          deployment_result = "部署成功" if os.environ["DEPLOYMENT_STATUS"] == "success" else "部署失败"
           payload = {
               "device_key": device_key,
-              "title": "Mini WMS 部署成功",
+              "title": f"Mini WMS {deployment_result}",
               "body": (
                   f"仓库：{repository}\n"
                   f"分支：{os.environ['GITHUB_REF_NAME']}\n"
