@@ -1,11 +1,7 @@
 package com.miniwms;
 
-import com.google.zxing.BarcodeFormat;
-import com.google.zxing.client.j2se.MatrixToImageWriter;
-import com.google.zxing.qrcode.QRCodeWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
@@ -27,14 +23,16 @@ class WarehouseApi {
     private final Stock stock;
     private final String publicUrl;
     private final Warehouses warehouses;
+    private final QrCodes qrCodes;
 
-    WarehouseApi(WarehouseDb db, Catalog catalog, Accounts accounts, Stock stock, Warehouses warehouses,
+    WarehouseApi(WarehouseDb db, Catalog catalog, Accounts accounts, Stock stock, Warehouses warehouses, QrCodes qrCodes,
                  @Value("${wms.public-url}") String publicUrl) {
         this.db = db;
         this.catalog = catalog;
         this.accounts = accounts;
         this.stock = stock;
         this.warehouses = warehouses;
+        this.qrCodes = qrCodes;
         this.publicUrl = publicUrl;
         if (!publicUrl.isBlank()) {
             URI origin = URI.create(publicUrl);
@@ -131,12 +129,9 @@ class WarehouseApi {
                     .port(request.getServerPort())
                 : UriComponentsBuilder.fromUriString(publicUrl).replacePath("");
         String link = uri.pathSegment("m", "slot", token).build().toUriString();
-        var matrix = new QRCodeWriter().encode(link, BarcodeFormat.QR_CODE, 320, 320);
-        var stream = new ByteArrayOutputStream();
-        MatrixToImageWriter.writeToStream(matrix, "PNG", stream);
         return ResponseEntity.ok().contentType(MediaType.IMAGE_PNG)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"slot-" + id + ".png\"")
-                .body(stream.toByteArray());
+                .body(qrCodes.png(link));
     }
 
     @PostMapping("/stock/in")

@@ -1,0 +1,73 @@
+name: miniwms
+services:
+  api:
+    image: ${WMS_JAVA_IMAGE:?Set WMS_JAVA_IMAGE}
+    entrypoint: ["java"]
+    command:
+      - "-Xms32m"
+      - "-Xmx160m"
+      - "-Xss512k"
+      - "-XX:+UseSerialGC"
+      - "-XX:ActiveProcessorCount=2"
+      - "-XX:MaxMetaspaceSize=128m"
+      - "-XX:ReservedCodeCacheSize=48m"
+      - "-jar"
+      - "/app/miniwms.jar"
+    user: "10001:10001"
+    env_file: .app.env
+    volumes:
+      - "${WMS_RELEASE_JAR:-./current/miniwms.jar}:/app/miniwms.jar:ro"
+    ports:
+      - "127.0.0.1:18089:8080"
+    networks: [mysql, cache]
+    mem_limit: 384m
+    cpus: "1.0"
+    pids_limit: 96
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=32m,mode=1777
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    labels:
+      org.opencontainers.image.revision: ${WMS_REVISION:?Set WMS_REVISION}
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+  redis:
+    image: redis:8.2.11-alpine@sha256:da23c2478319ceb4903857d77a2fd7aa5137d9e9d4c8165dafbacedac6403e95
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    volumes:
+      - redis-data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks: [cache]
+    mem_limit: 256m
+    cpus: "0.5"
+    pids_limit: 64
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=16m,mode=1777
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$(sed -n 's/^requirepass //p' /usr/local/etc/redis/redis.conf)\" redis-cli ping | grep -qx PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "3"
+
+networks:
+  mysql:
+    external: true
+    name: muse-pro_default
+  cache:
+    internal: true
+
+volumes:
+  redis-data:

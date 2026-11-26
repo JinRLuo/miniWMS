@@ -49,6 +49,18 @@ WMS_DEMO=true mvn spring-boot:run
 
 `compose.yaml` 提供应用部署配置。API 加入已有的 MySQL Docker 网络，Web 容器只发布服务器回环端口 `18089`。在目标服务器上设置数据库密码、管理员初始密码及 HTTPS 站点地址，使用 `docker compose up --build -d` 启动，再将 HTTPS 反向代理指向 `127.0.0.1:18089`。如果 API 和数据库在同一 Docker 网络，使用默认容器连接地址即可。MySQL 连接地址和网络名可通过 `WMS_DB_URL`、`WMS_DB_NETWORK` 覆盖。
 
+## Redis 会话与缓存
+
+生产环境启用 `redis` Spring Profile，通过 Spring Session 将登录会话保存在 Redis。服务端会话闲置 15 天后过期，浏览器 `JSESSIONID` Cookie 也持久保存 15 天；关闭浏览器、重启后端或重新发布应用后可继续使用尚未过期的登录。首次从内存会话切换至 Redis 时需重新登录一次。主动退出会删除 Redis 会话，密码、角色、账号名变更或账号停用会在下次请求时使旧会话失效；账号权限仍从数据库实时校验。
+
+仓库基础信息缓存 5 分钟，格子二维码 PNG 缓存 1 天，二维码缓存键包含完整扫码地址，变更站点地址后会生成新的二维码。库存数量、商品库存汇总、流水、报表和账号权限继续实时查询。会话使用 `miniwms:session:v1` 命名空间，缓存使用 `miniwms:cache:v1:` 前缀，均设置过期时间。
+
+服务器使用独立 Redis 8.2.11 容器、内网 Docker 网络和随机密码，不发布主机端口；开启 AOF 持久化，数据保存在 `miniwms_redis-data` Docker 卷。Redis 内存上限 128 MiB，容器上限 256 MiB，使用 `noeviction` 避免自动淘汰登录会话。运行配置保存在 `/opt/miniwms/compose.runtime.yaml`，Redis 配置位于 `/opt/miniwms/redis/redis.conf`，应用连接参数位于仅 root 可读的 `/opt/miniwms/.app.env`。配置和密码请勿提交到 Git。
+
+初次安装或同步运行配置时，把 [安装脚本](deploy/install-redis.py) 和 [运行模板](deploy/compose.runtime.yaml) 放到服务器同一目录，以 root 执行 `python3 install-redis.py`。脚本先备份原配置，再生成密码、更新 Redis 连接参数并仅启动 Redis；正在运行的 API 不会被重启，新配置在下次应用发布时生效。重复执行会复用现有密码和持久化卷。备份保存在 `/opt/miniwms/backups/before-redis-*`。
+
+本地开发默认使用内存会话，不依赖 Redis。需要验证生产模式时，设置 `SPRING_PROFILES_ACTIVE=redis` 以及 `WMS_REDIS_HOST`、`WMS_REDIS_PORT`、`WMS_REDIS_PASSWORD`，再启动后端。可选参数 `WMS_REDIS_DATABASE`、`WMS_REDIS_SESSION_NAMESPACE`、`WMS_REDIS_CACHE_PREFIX` 用于隔离环境。使用根目录 `compose.yaml` 部署时，还须设置 `WMS_REDIS_PASSWORD`，Compose 会自动启用 Redis Profile 并启动独立 Redis 容器。
+
 ## GitHub Actions 自动发布
 
 推送或合并到 `main` 后，GitHub Actions 会运行后端测试、构建前端，然后把带校验和的发布包传到线上服务器。也可在 Actions 的 **Deploy Mini WMS** 页面从 `main` 手动触发。
@@ -103,3 +115,5 @@ npm --prefix frontend run build
 后端集成测试使用独立的内存数据库，涵盖并发出库、重复请求、小数库存、估算个数、仓库隔离、移库回滚、报表口径、二维码解析、权限控制和已有数据迁移。
 
 GitHub Actions 另外启动独立的 MySQL 8.0.45 测试库，验证 V1 旧库升级及 V2 中断后修复、续跑，检查原库存、流水、二维码和外键均保留。MySQL 迁移先建立包含 `shelf_id` 的新唯一索引，再移除旧的逐层唯一索引，避免删除外键依赖的索引。V2 对已完成的 DDL 做存在性检查，支持 MySQL 部分提交后的续跑；生产失败迁移须先备份并确认实际结构，再修复 Flyway 的失败记录。
+
+Actions 同时启动独立 Redis，运行真实 HTTP 会话测试，涵盖应用重启后继续登录、15 天会话及 Cookie 有效期、闲置过期、主动退出、停用账号、缓存 TTL、站点变更后的二维码以及实时库存读取。本地设置 `WMS_TEST_REDIS_PORT` 后执行 `mvn -f backend/pom.xml test` 可运行这些测试，Redis 测试数据使用每次运行独立的命名空间，不清空整个 Redis 数据库。

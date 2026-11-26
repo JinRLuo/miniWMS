@@ -1,0 +1,24 @@
+spring:
+  autoconfigure:
+    exclude: ""
+  data:
+    redis:
+      host: ${WMS_REDIS_HOST:127.0.0.1}
+      port: ${WMS_REDIS_PORT:6379}
+      password: ${WMS_REDIS_PASSWORD:}
+      database: ${WMS_REDIS_DATABASE:0}
+      connect-timeout: 2s
+      timeout: 2s
+      repositories:
+        enabled: false
+  session:
+    redis:
+      namespace: ${WMS_REDIS_SESSION_NAMESPACE:miniwms:session:v1}
+      repository-type: default
+  cache:
+    type: redis
+    cache-names: warehouses,qr-images
+    redis:
+      key-prefix: ${WMS_REDIS_CACHE_PREFIX:miniwms:cache:v1:}
+      time-to-live: 5m
+      cache-null-values: false
