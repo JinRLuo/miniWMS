@@ -20,14 +20,16 @@ class ReportApi {
     @GetMapping("/reports/trend")
     List<Reports.Trend> trend(@RequestParam(required=false) LocalDate from, @RequestParam(required=false) LocalDate to,
                               @RequestParam(defaultValue="DAY") Reports.Period period, @RequestParam(defaultValue="1") long warehouseId,
-                              @RequestParam(required=false) String unit) {
-        return reports.trend(from, to, period, warehouseId, unit);
+                              @RequestParam(required=false) String unit, @RequestParam(required=false) String variety,
+                              @RequestParam(required=false) Integer headCount) {
+        return reports.trend(from, to, period, warehouseId, unit, variety, headCount);
     }
 
     @GetMapping("/reports/products")
     List<Reports.ProductStats> products(@RequestParam(required=false) LocalDate from,
-                                       @RequestParam(required=false) LocalDate to, @RequestParam(defaultValue="1") long warehouseId) {
-        return reports.products(from, to, warehouseId);
+                                       @RequestParam(required=false) LocalDate to, @RequestParam(defaultValue="1") long warehouseId,
+                                       @RequestParam(required=false) String variety, @RequestParam(required=false) Integer headCount) {
+        return reports.products(from, to, warehouseId, variety, headCount);
     }
 
     @GetMapping("/stock/movements")

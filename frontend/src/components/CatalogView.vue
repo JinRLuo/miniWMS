@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { Boxes, Download, Grid2X2, List, Plus, Printer, QrCode, Search, X } from 'lucide-vue-next'
 import { api, errorMessage } from '../api'
 import FishShelfBoard from './FishShelfBoard.vue'
+import AppSelect from './AppSelect.vue'
 import { includes, number, requestId, type Account, type Product, type Shelf, type Slot, type Warehouse } from '../model'
 
 const props = defineProps<{
@@ -118,12 +119,10 @@ async function save() {
   <section :class="['panel', { 'shelf-management': page === 'shelves' && fish }]">
     <div class="toolbar">
       <label class="searchbox"><Search :size="17" /><input v-model="search" :placeholder="fish ? '搜索货架、格子编号、品种或头数' : page === 'products' || (page === 'inventory' && inventoryMode === 'product') ? '搜索商品名、SKU 或条码' : '搜索货架编号、商品或 SKU'" aria-label="搜索"></label>
-      <select v-if="page === 'shelves' || (page === 'inventory' && inventoryMode === 'slot')" v-model="shelfFilter" aria-label="按货架筛选">
-        <option value="">全部货架</option><option v-for="s in shelves" :key="s.id" :value="s.id">{{ s.code }} · {{ s.name }}</option>
-      </select>
-      <select v-if="page === 'shelves' && fish" v-model="slotState" aria-label="按格子状态筛选">
-        <option value="ALL">全部状态</option><option value="STOCKED">有库存</option><option value="BOUND">待入库</option><option value="EMPTY">空格</option><option value="INACTIVE">已停用</option>
-      </select>
+      <AppSelect v-if="page === 'shelves' || (page === 'inventory' && inventoryMode === 'slot')" v-model="shelfFilter" label="按货架筛选"
+        :options="[{ value: '', label: '全部货架' }, ...shelves.map(s => ({ value: s.id, label: s.code + ' · ' + s.name }))]" />
+      <AppSelect v-if="page === 'shelves' && fish" v-model="slotState" label="按格子状态筛选"
+        :options="[{ value: 'ALL', label: '全部状态' }, { value: 'STOCKED', label: '有库存' }, { value: 'BOUND', label: '待入库' }, { value: 'EMPTY', label: '空格' }, { value: 'INACTIVE', label: '已停用' }]" />
       <label v-if="page === 'inventory' && inventoryMode === 'product'" class="check"><input v-model="lowOnly" type="checkbox"> 仅低库存</label>
       <div class="toolbar-end">
         <div v-if="page === 'inventory'" class="tabs compact">
@@ -247,10 +246,8 @@ async function save() {
         </template>
         <template v-if="editor === 'slot'">
           <label class="field">绑定商品
-            <select v-model="slotForm.productId">
-              <option :value="null">未绑定</option>
-              <option v-for="p in products.filter(p => p.active || p.id === slotForm.productId)" :key="p.id" :value="p.id">{{ p.sku }} · {{ p.name }}</option>
-            </select>
+            <AppSelect v-model="slotForm.productId" label="绑定商品" :options="[{ value: null, label: '未绑定' },
+              ...products.filter(p => p.active || p.id === slotForm.productId).map(p => ({ value: p.id, label: p.name, description: p.sku }))]" />
           </label>
           <label class="check"><input v-model="slotForm.active" type="checkbox"> 启用此{{ slotLabel }}</label>
         </template>

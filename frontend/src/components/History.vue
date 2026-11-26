@@ -2,13 +2,16 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ChevronLeft, ChevronRight, Download, Search } from 'lucide-vue-next'
 import { api, errorMessage, params, currentWarehouse } from '../api'
+import FishSpecFilter from './FishSpecFilter.vue'
+import AppSelect from './AppSelect.vue'
+import DateInput from './DateInput.vue'
 import { dateTime, typeLabel, number, type Movement, type Page, type Product, type Slot, type Transfer, type Warehouse } from '../model'
 
 const props = defineProps<{ zone: string; mobile: boolean; initialSlot: string; products: Product[]; slots: Slot[]; warehouse: Warehouse }>()
 const slotLabel = computed(() => props.warehouse.type === 'FISH_MAW' ? '格子' : '货架层')
 const tab = ref<'movements' | 'transfers'>('movements')
 const form = ref({
-  from: '', to: '', productId: '' as number | '',
+  from: '', to: '', variety: '', headCount: '' as number | '', productId: '' as number | '',
   slotId: props.slots.find(slot => slot.code === props.initialSlot)?.id ?? '' as number | '',
   type: '', operator: '', document: '', sourceSlotId: '' as number | '', targetSlotId: '' as number | '',
 })
@@ -23,6 +26,8 @@ let loadVersion = 0
 const filters = computed(() => params({ ...applied.value, warehouseId: currentWarehouse(), mine: props.mobile ? true : undefined }))
 const exportLink = computed(() => '/api/stock/movements.csv' + filters.value)
 const hasRows = computed(() => tab.value === 'movements' ? movements.value.length > 0 : transfers.value.length > 0)
+const slotOptions = computed(() => [{ value: '' as const, label: '全部' + slotLabel.value },
+  ...props.slots.map(slot => ({ value: slot.id, label: slot.code + (slot.active ? '' : '（已停用）') }))])
 
 async function load() {
   const version = ++loadVersion
@@ -63,34 +68,26 @@ onMounted(load)
       </div>
       <a v-if="tab === 'movements' && !mobile" class="secondary toolbar-end" :href="exportLink"><Download :size="17" /> 导出 CSV</a>
     </div>
-    <form class="filter-grid" @submit.prevent="apply">
-      <label class="field">开始日期<input v-model="form.from" type="date"></label>
-      <label class="field">结束日期<input v-model="form.to" type="date"></label>
-      <label class="field">商品<select v-model="form.productId">
-        <option value="">全部商品</option>
-        <option v-for="product in products" :key="product.id" :value="product.id">{{ product.sku }} · {{ product.name }}{{ product.active ? '' : '（已停用）' }}</option>
-      </select></label>
-      <template v-if="tab === 'movements'">
-        <label class="field">{{ slotLabel }}<select v-model="form.slotId">
-          <option value="">全部{{ slotLabel }}</option>
-          <option v-for="slot in slots" :key="slot.id" :value="slot.id">{{ slot.code }}{{ slot.active ? '' : '（已停用）' }}</option>
-        </select></label>
-        <label class="field">操作类型<select v-model="form.type"><option value="">全部</option>
-          <option v-for="(label, key) in typeLabel" :key="key" :value="key">{{ label }}</option></select></label>
-      </template>
-      <template v-else>
-        <label class="field">来源{{ slotLabel }}<select v-model="form.sourceSlotId">
-          <option value="">全部{{ slotLabel }}</option>
-          <option v-for="slot in slots" :key="slot.id" :value="slot.id">{{ slot.code }}{{ slot.active ? '' : '（已停用）' }}</option>
-        </select></label>
-        <label class="field">目标{{ slotLabel }}<select v-model="form.targetSlotId">
-          <option value="">全部{{ slotLabel }}</option>
-          <option v-for="slot in slots" :key="slot.id" :value="slot.id">{{ slot.code }}{{ slot.active ? '' : '（已停用）' }}</option>
-        </select></label>
-      </template>
-      <label v-if="!mobile" class="field">操作人<input v-model.trim="form.operator" placeholder="姓名或账号" maxlength="160"></label>
-      <label class="field">单据号<input v-model.trim="form.document" maxlength="160"></label>
-      <button class="primary" :disabled="loading"><Search :size="17" /> 查询</button>
+    <form class="filter-form" @submit.prevent="apply">
+      <div class="filter-fields">
+        <label class="field">开始日期<DateInput v-model="form.from" /></label>
+        <label class="field">结束日期<DateInput v-model="form.to" /></label>
+        <FishSpecFilter v-if="warehouse.type === 'FISH_MAW'" v-model:variety="form.variety" v-model:head-count="form.headCount" :products="products" />
+        <label v-else class="field">商品<AppSelect v-model="form.productId" label="商品"
+          :options="[{value: '', label: '全部商品'}, ...products.map(p => ({value: p.id, label: p.sku + ' · ' + p.name + (p.active ? '' : '（已停用）')}))]" /></label>
+        <template v-if="tab === 'movements'">
+          <label class="field">{{ slotLabel }}<AppSelect v-model="form.slotId" :label="slotLabel" :options="slotOptions" /></label>
+          <label class="field">操作类型<AppSelect v-model="form.type" label="操作类型"
+            :options="[{ value: '', label: '全部操作' }, ...Object.entries(typeLabel).map(([value, label]) => ({ value, label }))]" /></label>
+        </template>
+        <template v-else>
+          <label class="field">来源{{ slotLabel }}<AppSelect v-model="form.sourceSlotId" :label="'来源' + slotLabel" :options="slotOptions" /></label>
+          <label class="field">目标{{ slotLabel }}<AppSelect v-model="form.targetSlotId" :label="'目标' + slotLabel" :options="slotOptions" /></label>
+        </template>
+        <label v-if="!mobile" class="field">操作人<input v-model.trim="form.operator" placeholder="姓名或账号" maxlength="160"></label>
+        <label class="field">单据号<input v-model.trim="form.document" placeholder="输入单据号" maxlength="160"></label>
+      </div>
+      <div class="filter-actions"><button class="primary" :disabled="loading"><Search :size="17" /> 查询</button></div>
     </form>
     <p v-if="error" class="error panel-message" role="alert">{{ error }}</p>
     <p v-else-if="loading" class="empty" role="status">正在读取记录…</p>
@@ -102,7 +99,7 @@ onMounted(load)
           <td role="cell" data-label="时间 / 单据号">{{ dateTime(m.createdAt, zone) }}<small class="document" :title="m.documentNo">{{ m.documentNo }}</small></td>
           <td role="cell" data-label="操作"><span :class="['badge', m.type.toLowerCase()]">{{ typeLabel[m.type] }}</span></td>
           <td role="cell" data-label="商品">{{ m.product }}<small class="code">{{ m.sku }}</small></td>
-          <td role="cell" data-label="货架层" class="code">{{ m.slot }}</td>
+          <td role="cell" :data-label="slotLabel" class="code">{{ m.slot }}</td>
           <td role="cell" data-label="数量">{{ m.afterQty > m.beforeQty ? '+' : '−' }}{{ number(m.quantity) }} {{ m.unit }}</td>
           <td role="cell" data-label="库存变化">{{ number(m.beforeQty) }} → {{ number(m.afterQty) }} {{ m.unit }}</td>
           <td role="cell" data-label="操作人 / 备注">{{ m.operator }}<small class="break">{{ m.note }}</small></td>

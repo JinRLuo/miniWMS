@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { Plus, X } from 'lucide-vue-next'
 import { api, errorMessage } from '../api'
 import type { Account, Role } from '../model'
+import AppSelect from './AppSelect.vue'
 
 const emit = defineEmits<{ changed: [] }>()
 const users = ref<Account[]>([])
@@ -63,7 +64,7 @@ onMounted(load)
         <label class="field">账号<input v-model.trim="form.username" required pattern="[A-Za-z0-9._\-]{2,64}" maxlength="64" autocomplete="off"></label>
         <label class="field">显示名称<input v-model.trim="form.displayName" required maxlength="100"></label>
         <label class="field">{{ editId ? '重置密码（选填）' : '初始密码' }}<input v-model="form.password" type="password" :required="!editId" minlength="12" maxlength="72" autocomplete="new-password"></label>
-        <label class="field">角色<select v-model="form.role"><option value="OPERATOR">仓库操作员</option><option value="ADMIN">管理员</option></select></label>
+        <label class="field">角色<AppSelect v-model="form.role" label="角色" :options="[{ value: 'OPERATOR', label: '仓库操作员' }, { value: 'ADMIN', label: '管理员' }] as const" /></label>
         <label class="check"><input v-model="form.active" type="checkbox"> 启用账号</label>
       </fieldset>
       <p v-if="formError" class="error" role="alert">{{ formError }}</p>

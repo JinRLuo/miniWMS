@@ -18,7 +18,7 @@ class Reports {
 
     record Filters(LocalDate from, LocalDate to, String product, String shelf, Stock.Type type, String operator,
                    String document, Boolean mine, String source, String target,
-                   Long productId, Long slotId, Long sourceSlotId, Long targetSlotId, Long warehouseId) {}
+                   Long productId, Long slotId, Long sourceSlotId, Long targetSlotId, Long warehouseId, String variety, Integer headCount) {}
     record Movement(long id, long createdAt, Stock.Type type, String documentNo, String sku, String product,
                     String slot, BigDecimal quantity, BigDecimal beforeQty, BigDecimal afterQty, String operator, String note, String unit, Integer headCount) {}
     record Transfer(long id, long createdAt, String transferNo, String sku, String product, String source,
@@ -138,21 +138,27 @@ class Reports {
     List<Trend> trend(LocalDate from, LocalDate to, Period period) { return trend(from, to, period, 1, null); }
 
     List<Trend> trend(LocalDate from, LocalDate to, Period period, long warehouseId, String unit) {
+        return trend(from, to, period, warehouseId, unit, null, null);
+    }
+
+    List<Trend> trend(LocalDate from, LocalDate to, Period period, long warehouseId, String unit,
+                      String variety, Integer headCount) {
         warehouses.get(warehouseId);
         var dates = dates(from, to);
         Map<LocalDate, BigDecimal[]> buckets = new LinkedHashMap<>();
         for (var day = dates.from(); !day.isAfter(dates.to()); day = day.plusDays(1)) {
             buckets.computeIfAbsent(bucket(day, period), ignored -> new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
         }
-        db.jdbc.query("""
-            SELECT m.created_at,m.type,m.quantity FROM stock_movements m JOIN products p ON p.id=m.product_id
-            WHERE m.created_at>=? AND m.created_at<? AND m.type IN ('IN','OUT') AND p.warehouse_id=? AND p.unit=?
-            """, (ResultSet row) -> {
+        StringBuilder conditions = new StringBuilder(" WHERE m.created_at>=? AND m.created_at<? AND m.type IN ('IN','OUT') AND p.warehouse_id=? AND p.unit=?");
+        List<Object> args = new ArrayList<>(List.of(start(dates.from()), start(dates.to().plusDays(1)), warehouseId, trendUnit(warehouseId, unit)));
+        fishFilters(conditions, args, variety, headCount);
+        db.jdbc.query("SELECT m.created_at,m.type,m.quantity FROM stock_movements m JOIN products p ON p.id=m.product_id" + conditions,
+            (ResultSet row) -> {
                 var day = Instant.ofEpochMilli(row.getLong(1)).atZone(zone).toLocalDate();
                 var values = buckets.get(bucket(day, period));
                 int index = "IN".equals(row.getString(2)) ? 0 : 1;
                 values[index] = values[index].add(row.getBigDecimal(3));
-            }, start(dates.from()), start(dates.to().plusDays(1)), warehouseId, trendUnit(warehouseId, unit));
+            }, args.toArray());
         return buckets.entrySet().stream().map(e -> new Trend(e.getKey(), e.getValue()[0], e.getValue()[1])).toList();
     }
 
@@ -166,8 +172,15 @@ class Reports {
     List<ProductStats> products(LocalDate from, LocalDate to) { return products(from, to, 1); }
 
     List<ProductStats> products(LocalDate from, LocalDate to, long warehouseId) {
+        return products(from, to, warehouseId, null, null);
+    }
+
+    List<ProductStats> products(LocalDate from, LocalDate to, long warehouseId, String variety, Integer headCount) {
         warehouses.get(warehouseId);
         var dates = dates(from, to);
+        StringBuilder conditions = new StringBuilder(" WHERE p.warehouse_id=?");
+        List<Object> args = new ArrayList<>(List.of(start(dates.from()), start(dates.to().plusDays(1)), warehouseId));
+        fishFilters(conditions, args, variety, headCount);
         return db.jdbc.query("""
             SELECT p.id, p.sku, p.name, p.unit, COALESCE(m.inbound,0) AS inbound, COALESCE(m.outbound,0) AS outbound,
                    COALESCE(i.quantity,0) AS quantity
@@ -179,9 +192,8 @@ class Reports {
                    GROUP BY product_id) m ON m.product_id=p.id
             LEFT JOIN (SELECT s.product_id,SUM(i.quantity) AS quantity FROM inventory i JOIN shelf_slots s ON s.id=i.slot_id
                    GROUP BY s.product_id) i ON i.product_id=p.id
-            WHERE p.warehouse_id=? ORDER BY outbound DESC,p.sku
-            """, (r, n) -> new ProductStats(r.getLong("id"), r.getString("sku"), r.getString("name"), r.getString("unit"),
-                r.getBigDecimal("inbound"), r.getBigDecimal("outbound"), r.getBigDecimal("quantity")), start(dates.from()), start(dates.to().plusDays(1)), warehouseId);
+            """ + conditions + " ORDER BY outbound DESC,p.sku", (r, n) -> new ProductStats(r.getLong("id"), r.getString("sku"), r.getString("name"), r.getString("unit"),
+                r.getBigDecimal("inbound"), r.getBigDecimal("outbound"), r.getBigDecimal("quantity")), args.toArray());
     }
 
     private Query conditions(Filters f, Accounts.Principal actor, boolean transfer) {
@@ -191,6 +203,7 @@ class Reports {
         StringBuilder sql = new StringBuilder(" WHERE 1=1");
         List<Object> args = new ArrayList<>();
         add(sql, args, "p.warehouse_id=?", Warehouses.id(f.warehouseId()));
+        fishFilters(sql, args, f.variety(), f.headCount());
         if (f.from() != null) add(sql, args, alias + ".created_at>=?", start(f.from()));
         if (f.to() != null) add(sql, args, alias + ".created_at<?", start(f.to().plusDays(1)));
         if (f.productId() != null) add(sql, args, alias + ".product_id=?", f.productId());
@@ -219,6 +232,18 @@ class Reports {
         args.add((page - 1L) * 30);
         var rows = db.jdbc.query(sql + " LIMIT ? OFFSET ?", mapper, args.toArray());
         return new Page<>(rows.subList(0, Math.min(rows.size(), 30)), rows.size() > 30);
+    }
+
+    private void fishFilters(StringBuilder sql, List<Object> args, String variety, Integer headCount) {
+        String value = Catalog.optional(variety);
+        if (value != null) {
+            if (value.length() > 100) throw ApiError.bad("品种筛选不能超过100个字符");
+            add(sql, args, "p.variety=?", value);
+        }
+        if (headCount != null) {
+            if (headCount < 1 || headCount > 100000) throw ApiError.bad("头数须为1至100000的整数");
+            add(sql, args, "p.head_count=?", headCount);
+        }
     }
 
     private void text(StringBuilder sql, List<Object> args, String input, String... columns) {

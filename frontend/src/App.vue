@@ -257,7 +257,7 @@ onBeforeUnmount(() => {
           <CatalogView v-else-if="['products', 'shelves', 'inventory'].includes(page)" :page="page" :products="products" :shelves="shelves"
             :slots="slots" :warehouse="warehouse" :user="user" :mobile="mobile" @changed="refresh" @history="openHistory" @stock="openStock" />
           <History v-else-if="page === 'history'" :warehouse="warehouse" :zone="summary.zone" :mobile="mobile" :initial-slot="historySlot" :products="products" :slots="slots" />
-          <Reports v-else-if="page === 'reports'" :slots="slots" :warehouse="warehouse" :today="summary.today" :units="summary.units.map(u => u.unit)" />
+          <Reports v-else-if="page === 'reports'" :catalog="products" :slots="slots" :warehouse="warehouse" :today="summary.today" :units="summary.units.map(u => u.unit)" />
           <Users v-else-if="page === 'users' && user.role === 'ADMIN'" @changed="refreshUser" />
         </template>
       </main>

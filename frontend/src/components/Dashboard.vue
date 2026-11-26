@@ -4,6 +4,7 @@ import { Archive, ArrowDownLeft, ArrowRight, ArrowUpRight, ArrowLeftRight, Boxes
 import { api, errorMessage } from '../api'
 import { dateTime, number, typeLabel, type Movement, type Page, type Summary, type Trend, type Warehouse } from '../model'
 import TrendChart from './TrendChart.vue'
+import AppSelect from './AppSelect.vue'
 
 const props = defineProps<{ summary: Summary; mobile: boolean; warehouse: Warehouse }>()
 defineEmits<{ navigate: [page: string]; action: [type: 'IN' | 'OUT' | 'TRANSFER'] }>()
@@ -56,7 +57,7 @@ watch(unit, async value => {
     <section class="panel">
       <div class="panel-head">
         <div><h2>出入库趋势</h2><p>最近 7 天 · {{ unit }} · 按仓库时区</p></div>
-        <select v-if="summary.units.length > 1" v-model="unit" aria-label="趋势计量单位"><option v-for="u in summary.units" :key="u.unit">{{ u.unit }}</option></select><div class="legend"><span>入库</span><span>出库</span></div>
+        <AppSelect v-if="summary.units.length > 1" v-model="unit" class="unit-select" label="趋势计量单位" :options="summary.units.map(u => ({ value: u.unit, label: u.unit }))" /><div class="legend"><span>入库</span><span>出库</span></div>
       </div>
       <TrendChart :data="trend" :unit="unit" />
     </section>
