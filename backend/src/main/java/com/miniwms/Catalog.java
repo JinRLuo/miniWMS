@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 class Catalog {
     record Product(long id, String sku, String name, String barcode, String category, String specification,
                    String unit, String imageUrl, BigDecimal warningLevel, boolean active, String note, BigDecimal quantity,
-                   long warehouseId, String variety, Integer headCount) {
+                   long warehouseId, String variety, Integer headCount, boolean specificationLocked) {
         public BigDecimal getEstimatedCount() {
             return headCount == null ? null : quantity.multiply(BigDecimal.valueOf(headCount)).setScale(0, RoundingMode.HALF_UP);
         }
@@ -44,7 +44,8 @@ class Catalog {
     record SlotForm(@Positive Long productId, @NotNull Boolean active) {}
 
     private static final String PRODUCT_VIEW = """
-        SELECT p.*, COALESCE(t.quantity, 0) AS total FROM products p
+        SELECT p.*, COALESCE(t.quantity, 0) AS total,
+               EXISTS(SELECT 1 FROM stock_movements m WHERE m.product_id=p.id) AS specification_locked FROM products p
         LEFT JOIN (SELECT s.product_id, SUM(i.quantity) AS quantity FROM shelf_slots s
                    JOIN inventory i ON s.id=i.slot_id GROUP BY s.product_id) t ON t.product_id=p.id
         """;
@@ -52,7 +53,7 @@ class Catalog {
             r.getLong("id"), r.getString("sku"), r.getString("name"), r.getString("barcode"),
             r.getString("category"), r.getString("specification"), r.getString("unit"), r.getString("image_url"),
             r.getBigDecimal("warning_level"), r.getBoolean("active"), r.getString("note"), r.getBigDecimal("total"),
-            r.getLong("warehouse_id"), r.getString("variety"), r.getObject("head_count", Integer.class));
+            r.getLong("warehouse_id"), r.getString("variety"), r.getObject("head_count", Integer.class), r.getBoolean("specification_locked"));
     private static final RowMapper<Shelf> SHELF = (r, n) -> new Shelf(r.getLong("id"), r.getString("code"),
             r.getString("name"), r.getInt("layer_count"), r.getLong("warehouse_id"));
 
@@ -112,7 +113,7 @@ class Catalog {
             if (current.warehouseId() != warehouseId) throw ApiError.conflict("商品不属于当前仓库");
             boolean coreChanged = !java.util.Objects.equals(current.variety(), variety)
                     || !java.util.Objects.equals(current.headCount(), heads) || !current.unit().equals(unit);
-            if (coreChanged && db.jdbc.queryForObject("SELECT COUNT(*) FROM stock_movements WHERE product_id=?", Long.class, id) > 0)
+            if (coreChanged && current.specificationLocked())
                 throw ApiError.conflict("已有库存流水的品种、头数和单位固定，请新建商品规格");
             Object[] values = java.util.Arrays.copyOf(fields, fields.length + 1);
             values[fields.length] = id;

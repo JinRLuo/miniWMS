@@ -2,6 +2,8 @@
 import { computed, nextTick, ref } from 'vue'
 import { ArrowDownLeft, ArrowUpRight, Boxes, ClipboardList, Pencil, Printer, QrCode, X } from 'lucide-vue-next'
 import { decimal, number, type Shelf, type Slot } from '../model'
+import { useWeight } from '../weight'
+const { unitLabel, formatWeight } = useWeight()
 
 const props = defineProps<{
   shelves: Shelf[]; slots: Slot[]; matchingSlots: Slot[]; filtering: boolean; admin: boolean
@@ -39,7 +41,7 @@ const shownSlots = computed(() => racks.value.flatMap(rack => rack.slots))
 const occupied = computed(() => shownSlots.value.filter(slot => slot.quantity > 0).length)
 const weight = computed(() => decimal(shownSlots.value.reduce((sum, slot) => sum + slot.quantity, 0)))
 const status = (slot: Slot) => !slot.active ? '已停用' : slot.quantity > 0 ? '有库存' : slot.productId ? '待入库' : '空格'
-const cellLabel = (slot: Slot) => [slot.code, slot.productName || '空格', slot.productId ? number(slot.quantity) + '斤' : '', status(slot)].filter(Boolean).join('，')
+const cellLabel = (slot: Slot) => [slot.code, slot.productName || '空格', slot.productId ? formatWeight(slot.quantity) + unitLabel.value : '', status(slot)].filter(Boolean).join('，')
 
 async function inspect(slot: Slot) {
   selectedId.value = slot.id
@@ -60,7 +62,7 @@ function stockSelected(mode: 'IN' | 'OUT') { if (selected.value) { close(); emit
         <span><strong>{{ racks.length }}</strong> 个货架</span>
         <span><strong>{{ shownSlots.length }}</strong> 个格子</span>
         <span><strong>{{ occupied }}</strong> 个有库存</span>
-        <span class="rack-board-weight">合计 <strong>{{ number(weight) }}</strong> 斤</span>
+        <span class="rack-board-weight">合计 <strong>{{ formatWeight(weight) }}</strong> {{ unitLabel }}</span>
         <span v-if="filtering" class="rack-match-count">{{ matchingSlots.length }} 格匹配</span>
       </div>
       <div class="rack-board-legend" aria-label="格子状态">
@@ -86,14 +88,14 @@ function stockSelected(mode: 'IN' | 'OUT') { if (selected.value) { close(); emit
                 <span class="rack-cell-index">{{ String(slot.cellNo).padStart(2, '0') }}</span>
                 <template v-if="slot.productId">
                   <span class="rack-cell-name">{{ slot.variety }}<small>{{ slot.headCount }}头</small></span>
-                  <strong class="rack-cell-weight">{{ number(slot.quantity) }}<small>斤</small></strong>
+                  <strong class="rack-cell-weight">{{ formatWeight(slot.quantity) }}<small>{{ unitLabel }}</small></strong>
                 </template>
                 <span v-else class="rack-cell-empty">{{ slot.active ? '空格' : '停用' }}</span>
               </button>
             </div>
           </div>
         </div>
-        <footer class="rack-card-footer"><span>{{ rack.shelf.layerCount }}层 · {{ rack.slots.length }}格</span><span>{{ rack.occupied }}/{{ rack.slots.length }} 有货</span><strong>{{ number(rack.weight) }}<small> 斤</small></strong></footer>
+        <footer class="rack-card-footer"><span>{{ rack.shelf.layerCount }}层 · {{ rack.slots.length }}格</span><span>{{ rack.occupied }}/{{ rack.slots.length }} 有货</span><strong>{{ formatWeight(rack.weight) }}<small> {{ unitLabel }}</small></strong></footer>
       </article>
     </div>
     <p v-else class="empty">没有符合条件的货架，请调整搜索或筛选条件。</p>
@@ -106,12 +108,12 @@ function stockSelected(mode: 'IN' | 'OUT') { if (selected.value) { close(); emit
         <div class="rack-drawer-location"><span>{{ shelves.find(shelf => shelf.id === selected?.shelfId)?.name }} · 第{{ selected.layerNo }}层 · 第{{ selected.cellNo }}格</span><span class="badge" :class="!selected.active ? 'out' : selected.quantity > 0 ? 'in' : 'neutral'">{{ status(selected) }}</span></div>
         <template v-if="selected.productId">
           <h3 class="rack-drawer-product">{{ selected.productName }}</h3>
-          <div class="rack-drawer-stock"><strong>{{ number(selected.quantity) }}<small>斤</small></strong><span>约 {{ number(selected.estimatedCount ?? 0) }} 个</span></div>
+          <div class="rack-drawer-stock"><strong>{{ formatWeight(selected.quantity) }}<small>{{ unitLabel }}</small></strong><span>约 {{ number(selected.estimatedCount ?? 0) }} 个</span></div>
           <dl class="detail-list"><div><dt>品种</dt><dd>{{ selected.variety }}</dd></div><div><dt>头数</dt><dd>{{ selected.headCount }} 个 / 斤</dd></div><div><dt>规格编号</dt><dd>{{ selected.sku }}</dd></div></dl>
-          <p class="muted rack-drawer-note">个数按重量估算，出入库以实际斤数为准。</p>
+          <p class="muted rack-drawer-note">个数按重量估算，出入库以实际重量为准。</p>
           <div class="rack-drawer-operations"><button class="primary" :disabled="!selected.active || !selected.productActive" @click="stockSelected('IN')"><ArrowDownLeft :size="17" />入库</button><button class="secondary" :disabled="!selected.active || selected.quantity <= 0" @click="stockSelected('OUT')"><ArrowUpRight :size="17" />出库</button></div>
         </template>
-        <div v-else class="rack-drawer-vacant"><Boxes :size="30" /><h3>{{ selected.active ? '这个格子还没有绑定鱼胶' : '这个格子已停用' }}</h3><p>{{ admin ? '绑定品种和头数后，即可按斤办理出入库。' : '请联系管理员绑定鱼胶规格。' }}</p><button v-if="admin" class="primary" @click="editSelected">{{ selected.active ? '绑定鱼胶规格' : '编辑格子' }}</button></div>
+        <div v-else class="rack-drawer-vacant"><Boxes :size="30" /><h3>{{ selected.active ? '这个格子还没有绑定鱼胶' : '这个格子已停用' }}</h3><p>{{ admin ? '绑定品种和头数后，即可按' + unitLabel + '办理出入库。' : '请联系管理员绑定鱼胶规格。' }}</p><button v-if="admin" class="primary" @click="editSelected">{{ selected.active ? '绑定鱼胶规格' : '编辑格子' }}</button></div>
         <div class="rack-drawer-links"><button class="secondary" @click="historySelected"><ClipboardList :size="16" />库存流水</button><button v-if="admin" class="secondary" @click="printSelected"><QrCode :size="16" />二维码标签</button><button v-if="admin && selected.productId" class="secondary" @click="editSelected"><Pencil :size="16" />编辑绑定</button></div>
       </div>
     </template>

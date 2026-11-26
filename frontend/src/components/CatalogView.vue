@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { Boxes, Download, Grid2X2, List, Plus, Printer, QrCode, Search, X } from 'lucide-vue-next'
-import { api, errorMessage } from '../api'
+import { Boxes, Download, Grid2X2, List, LockKeyhole, Plus, Printer, QrCode, Search, X } from 'lucide-vue-next'
+import { api, ApiError, errorMessage } from '../api'
 import FishShelfBoard from './FishShelfBoard.vue'
 import AppSelect from './AppSelect.vue'
+import { useWeight } from '../weight'
 import { includes, number, requestId, type Account, type Product, type Shelf, type Slot, type Warehouse } from '../model'
 
 const props = defineProps<{
@@ -11,6 +12,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ changed: []; history: [slot: string]; stock: [slotId: number, mode: 'IN' | 'OUT'] }>()
 const fish = computed(() => props.warehouse.type === 'FISH_MAW')
+const { unitLabel, weightStep, formatWeight, displayWeight, baseWeight, displayUnit } = useWeight()
 const slotLabel = computed(() => fish.value ? '格子' : '货架层')
 const defaultLayerCount = fish.value ? 3 : 4
 const defaultCellsPerLayer = 2
@@ -35,6 +37,19 @@ const printing = ref(false)
 const productForm = ref({ sku: '', name: '', barcode: '', category: '', specification: '', unit: '件', imageUrl: '', warningLevel: null as number | null | '', active: true, note: '', variety: '', headCount: null as number | null })
 const shelfForm = ref({ code: '', name: '', layerCount: defaultLayerCount })
 const slotForm = ref({ productId: null as number | null, active: true })
+const warningInput = computed<number | null | ''>({
+  get: () => productForm.value.warningLevel === null || productForm.value.warningLevel === '' ? productForm.value.warningLevel
+    : fish.value ? displayWeight(productForm.value.warningLevel) : productForm.value.warningLevel,
+  set: value => { productForm.value.warningLevel = value === '' || value === null ? value : fish.value ? baseWeight(value) : value },
+})
+const editedProduct = computed(() => props.products.find(product => product.id === editId.value))
+const specificationLocked = computed(() => fish.value && !!editedProduct.value?.specificationLocked)
+watch(editedProduct, product => {
+  if (editor.value === 'product' && specificationLocked.value && product) {
+    productForm.value.variety = product.variety ?? ''
+    productForm.value.headCount = product.headCount
+  }
+})
 watch(() => shelfForm.value.layerCount, layers => {
   layerCells.value = Array.from({ length: Math.max(0, Math.min(100, Number(layers) || 0)) }, (_, i) => layerCells.value[i] ?? cellsPerLayer.value)
 })
@@ -110,7 +125,10 @@ async function save() {
     await api(path + (editId.value ? '/' + editId.value : ''), body, editId.value ? 'PUT' : 'POST')
     dialog.value?.close()
     emit('changed')
-  } catch (e) { error.value = errorMessage(e) }
+  } catch (e) {
+    error.value = errorMessage(e)
+    if (editor.value === 'product' && e instanceof ApiError && e.status === 409) emit('changed')
+  }
   finally { busy.value = false }
 }
 </script>
@@ -153,15 +171,15 @@ async function save() {
                 <span v-else class="product-icon"><Boxes :size="17" /></span><div>{{ p.name }}<small class="code">{{ p.sku }}</small></div></div></td>
               <td role="cell" data-label="条码">{{ p.barcode || '—' }}</td>
               <td role="cell" data-label="分类 / 规格">{{ fish ? p.variety + ' / ' + p.headCount + '头' : [p.category, p.specification].filter(Boolean).join(' / ') || '—' }}</td>
-              <td role="cell" data-label="总库存"><strong>{{ number(p.quantity) }} {{ p.unit }}</strong><small v-if="fish">约{{ number(p.estimatedCount ?? 0) }}个</small></td>
-              <td role="cell" data-label="预警值">{{ p.warningLevel ?? '—' }}</td>
+              <td role="cell" data-label="总库存"><strong>{{ formatWeight(p.quantity, p.unit) }} {{ displayUnit(p.unit) }}</strong><small v-if="fish">约{{ number(p.estimatedCount ?? 0) }}个</small></td>
+              <td role="cell" data-label="预警值">{{ p.warningLevel === null ? '—' : formatWeight(p.warningLevel, p.unit) + ' ' + displayUnit(p.unit) }}</td>
               <td role="cell" data-label="状态"><span :class="['badge', !p.active ? 'neutral' : isLow(p) ? 'out' : 'in']">{{ !p.active ? '已停用' : isLow(p) ? '低库存' : '启用' }}</span></td>
               <td role="cell"><div class="row-actions"><button class="text-button" :aria-expanded="expanded === p.id" @click="expanded = expanded === p.id ? null : p.id">库位分布</button>
                 <button v-if="page === 'products' && admin" class="text-button" @click="editProduct(p)">编辑</button></div></td>
             </tr>
             <tr v-if="expanded === p.id" class="distribution" role="row"><td colspan="7" role="cell">
               <strong>{{ slotLabel }}分布</strong>
-              <div v-for="slot in slots.filter(s => s.productId === p.id)" :key="slot.id"><span class="code">{{ slot.code }}</span> {{ number(slot.quantity) }} {{ p.unit }}</div>
+              <div v-for="slot in slots.filter(s => s.productId === p.id)" :key="slot.id"><span class="code">{{ slot.code }}</span> {{ formatWeight(slot.quantity, p.unit) }} {{ displayUnit(p.unit) }}</div>
               <span v-if="!slots.some(s => s.productId === p.id)" class="muted">暂无绑定{{ slotLabel }}。</span>
             </td></tr>
           </template>
@@ -176,7 +194,7 @@ async function save() {
       <div v-for="s in visibleShelves.filter(s => filteredSlots.some(slot => slot.shelfId === s.id))" :key="s.id" class="shelf-rack">
         <h3>{{ s.code }} · {{ s.name }}</h3>
         <div v-for="slot in filteredSlots.filter(slot => slot.shelfId === s.id)" :key="slot.id" class="rack-layer">
-          <strong class="code">{{ slot.code }}</strong><span>{{ slot.productName ?? '未绑定' }}</span><b>{{ slot.quantity }} {{ slot.unit || '' }}</b>
+          <strong class="code">{{ slot.code }}</strong><span>{{ slot.productName ?? '未绑定' }}</span><b>{{ formatWeight(slot.quantity, slot.unit) }} {{ displayUnit(slot.unit) }}</b>
           <button v-if="admin" class="text-button" @click="editSlot(slot)">编辑</button>
         </div>
       </div>
@@ -187,7 +205,7 @@ async function save() {
         <tbody role="rowgroup"><tr v-for="slot in filteredSlots" :key="slot.id" role="row">
           <td role="cell" class="code">{{ slot.code }}</td>
           <td role="cell" data-label="商品">{{ slot.productName ?? '—' }}<small v-if="slot.sku">{{ slot.sku }}</small></td>
-          <td role="cell" data-label="当前库存"><strong>{{ number(slot.quantity) }} {{ slot.unit || '' }}</strong><small v-if="fish && slot.headCount">约{{ number(slot.estimatedCount ?? 0) }}个</small></td>
+          <td role="cell" data-label="当前库存"><strong>{{ formatWeight(slot.quantity, slot.unit) }} {{ displayUnit(slot.unit) }}</strong><small v-if="fish && slot.headCount">约{{ number(slot.estimatedCount ?? 0) }}个</small></td>
           <td role="cell" data-label="状态"><span :class="['badge', slot.active && slot.productId !== null ? 'in' : 'neutral']">{{ !slot.active ? '已停用' : slot.productId === null ? '空闲' : '已绑定' }}</span></td>
           <td role="cell"><div class="row-actions">
             <button class="text-button" @click="$emit('history', slot.code)">流水</button>
@@ -219,6 +237,10 @@ async function save() {
     <form v-else class="form-stack dialog-form" @submit.prevent="save">
       <fieldset :disabled="busy">
         <template v-if="editor === 'product'">
+          <div v-if="specificationLocked" id="specification-lock-notice" class="specification-lock-notice" role="note">
+            <LockKeyhole :size="18" aria-hidden="true" />
+            <div><strong>品种和头数已锁定</strong><p>该规格已有历史流水，库存清零后也不能修改。需要更换品种或头数时，请新建鱼胶规格。</p></div>
+          </div>
           <div class="form-columns">
             <label class="field">{{ fish ? '规格编号（留空自动生成）' : 'SKU 编号' }}<input v-model.trim="productForm.sku" :required="!fish" maxlength="64"></label>
             <label v-if="!fish" class="field">商品名称<input v-model.trim="productForm.name" required maxlength="160"></label>
@@ -226,9 +248,9 @@ async function save() {
             <label v-if="!fish" class="field">分类<input v-model.trim="productForm.category" maxlength="80"></label>
             <label v-if="!fish" class="field">规格<input v-model.trim="productForm.specification" maxlength="100"></label>
             <label v-if="!fish" class="field">单位<input v-model.trim="productForm.unit" required maxlength="16"></label>
-            <label v-if="fish" class="field">品种<input v-model.trim="productForm.variety" required maxlength="100" placeholder="如白花"></label>
-            <label v-if="fish" class="field">头数（个 / 斤）<input v-model.number="productForm.headCount" type="number" min="1" max="100000" step="1" required placeholder="如33"></label>
-            <label class="field">{{ fish ? '库存预警值（斤）' : '库存预警值' }}<input v-model.number="productForm.warningLevel" type="number" min="0" max="2147483647" :step="fish ? 0.001 : 1"></label>
+            <label v-if="fish" class="field">品种<input v-model.trim="productForm.variety" :readonly="specificationLocked" :aria-describedby="specificationLocked ? 'specification-lock-notice' : undefined" required maxlength="100" placeholder="如白花"></label>
+            <label v-if="fish" class="field">头数（个 / 斤）<input v-model.number="productForm.headCount" type="number" :readonly="specificationLocked" :aria-describedby="specificationLocked ? 'specification-lock-notice' : undefined" min="1" max="100000" step="1" required placeholder="如33"></label>
+            <label class="field">{{ fish ? '库存预警值（' + unitLabel + '）' : '库存预警值' }}<input v-model.number="warningInput" type="number" min="0" :max="fish ? displayWeight(2147483647) : 2147483647" :step="fish ? weightStep : 1"></label>
             <label class="field">商品图片 URL<input v-model.trim="productForm.imageUrl" type="url" maxlength="512" placeholder="https://…"></label>
           </div>
           <label class="field">备注<textarea v-model.trim="productForm.note" rows="2" maxlength="500"></textarea></label>

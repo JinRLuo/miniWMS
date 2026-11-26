@@ -40,6 +40,10 @@ class WarehouseMigrationTest {
             }
             // The previous unique-per-layer constraint has been replaced with unique-per-cell.
             s.execute("INSERT INTO shelf_slots(shelf_id,code,layer_no,cell_no,qr_token) VALUES(1,'OLD-1-2',1,2,'second-cell-token')");
+            s.execute("INSERT INTO user_preferences(user_id,weight_unit) VALUES(1,'GRAM')");
+            try (var r = s.executeQuery("SELECT weight_unit FROM user_preferences WHERE user_id=1")) {
+                assertThat(r.next()).isTrue(); assertThat(r.getString(1)).isEqualTo("GRAM");
+            }
         }
     }
 }

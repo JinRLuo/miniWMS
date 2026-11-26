@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Archive, ArrowDownUp, BarChart3, Boxes, ChevronRight, ClipboardList, LayoutDashboard, LogOut, Package, ScanLine, Warehouse, Users as UserIcon } from 'lucide-vue-next'
+import { computed, onBeforeUnmount, onMounted, provide, ref } from 'vue'
+import { Archive, ArrowDownUp, BarChart3, Boxes, ChevronRight, ClipboardList, LayoutDashboard, LogOut, Package, ScanLine, Settings as SettingsIcon, Warehouse, Users as UserIcon } from 'lucide-vue-next'
 import { api, ApiError, errorMessage, setWarehouse } from './api'
-import type { Account, Product, Shelf, Slot, Summary, Warehouse as WarehouseInfo } from './model'
+import type { Account, Product, ProductChoice, Shelf, Slot, SlotChoice, StockWorkspace, Summary, Warehouse as WarehouseInfo } from './model'
 import Dashboard from './components/Dashboard.vue'
 import StockForm from './components/StockForm.vue'
 import CatalogView from './components/CatalogView.vue'
 import History from './components/History.vue'
 import Reports from './components/Reports.vue'
 import Users from './components/Users.vue'
+import Settings from './components/Settings.vue'
+import { weightUnitKey, type Preferences } from './weight'
+import { showTransfers } from './features'
 
 const showGeneralWarehouse = import.meta.env.VITE_SHOW_GENERAL_WAREHOUSE === 'true'
 const warehouses = ref<WarehouseInfo[]>([])
@@ -25,8 +28,9 @@ const navItems = [
   { id: 'history', name: '出入库记录', icon: ClipboardList },
   { id: 'reports', name: '统计报表', icon: BarChart3 },
   { id: 'users', name: '账号管理', icon: UserIcon },
+  { id: 'settings', name: '个人设置', icon: SettingsIcon },
 ]
-const mobileItems = [navItems[0], navItems[4], navItems[3], navItems[5]]
+const mobileItems = [navItems[0], navItems[4], navItems[3], navItems[5], navItems[8]]
 const mobile = ref(false)
 const page = ref('dashboard')
 const token = ref<string | null>(null)
@@ -35,7 +39,13 @@ const operationKey = ref(0)
 const initialSlotId = ref<number | null>(null)
 const historySlot = ref('')
 const user = ref<Account>()
+const preferences = ref<Preferences>({ weightUnit: 'JIN' })
+provide(weightUnitKey, computed(() => fish.value ? preferences.value.weightUnit : 'JIN'))
 const summary = ref<Summary>()
+const workspaceReady = ref(false)
+const workspaceInfo = ref({ zone: 'Asia/Shanghai', today: '' })
+const historyProducts = ref<ProductChoice[]>([])
+const historySlots = ref<SlotChoice[]>([])
 const products = ref<Product[]>([])
 const shelves = ref<Shelf[]>([])
 const slots = ref<Slot[]>([])
@@ -44,11 +54,15 @@ const password = ref('')
 const opening = ref(true)
 const busy = ref(false)
 const error = ref('')
+const loginNotice = ref('')
 const dataError = ref('')
 let loadVersion = 0
 
 const title = computed(() => fish.value && page.value === 'products' ? '鱼胶规格' : navItems.find(item => item.id === page.value)?.name ?? '工作台')
-const navigation = computed(() => navItems.filter(item => item.id !== 'users' || user.value?.role === 'ADMIN'))
+const isAdmin = computed(() => user.value?.role === 'ADMIN')
+const operatorPages = new Set(['dashboard', 'operations', 'history', 'settings'])
+const navigation = computed(() => navItems.filter(item => isAdmin.value || operatorPages.has(item.id)))
+const mobileNavigation = computed(() => mobileItems.filter(item => isAdmin.value || operatorPages.has(item.id)))
 
 function readLocation() {
   const currentUrl = new URL(location.href)
@@ -64,9 +78,11 @@ function readLocation() {
   mobile.value = parts[0] === 'm' || (parts.length === 0 && matchMedia('(max-width: 760px)').matches)
   token.value = mobile.value && parts[1] === 'slot' ? parts[2] || null : null
   const requested = token.value ? 'operations' : parts[1] || 'dashboard'
-  const options = mobile.value ? mobileItems : navigation.value
-  page.value = options.some(item => item.id === requested) || (requested === 'users' && !user.value && !mobile.value)
+  const options = mobile.value ? mobileNavigation.value : navigation.value
+  page.value = options.some(item => item.id === requested) || (!user.value && !mobile.value && navItems.some(item => item.id === requested))
     ? requested : 'dashboard'
+  if (user.value && requested !== page.value && navItems.some(item => item.id === requested))
+    history.replaceState({}, '', url(page.value))
   if (page.value !== 'history') historySlot.value = ''
 }
 function url(next: string) {
@@ -74,6 +90,7 @@ function url(next: string) {
   return (next === 'dashboard' ? base : base + '/' + next) + '?warehouse=' + warehouseId.value
 }
 function navigate(next: string) {
+  if (!(mobile.value ? mobileNavigation.value : navigation.value).some(item => item.id === next)) return
   if (page.value === next && !token.value) return
   if (next !== 'history') historySlot.value = ''
   if (next === 'operations') { preset.value = 'IN'; initialSlotId.value = null }
@@ -91,11 +108,14 @@ async function switchWarehouse(id: number) {
   history.pushState({}, '', url('dashboard'))
   page.value = 'dashboard'
   summary.value = undefined
+  workspaceReady.value = false
   products.value = []; shelves.value = []; slots.value = []
   await refresh()
 }
 async function prepareWarehouse() {
-  warehouses.value = (await api<WarehouseInfo[]>('/warehouses')).filter(w => showGeneralWarehouse || w.type === 'FISH_MAW')
+  const [available, settings] = await Promise.all([api<WarehouseInfo[]>('/warehouses'), api<Preferences>('/auth/preferences')])
+  warehouses.value = available.filter(w => showGeneralWarehouse || w.type === 'FISH_MAW')
+  preferences.value = settings
   let qrError = ''
   if (token.value) {
     const slot = await api<Slot>('/slots/resolve/' + token.value)
@@ -115,9 +135,15 @@ async function prepareWarehouse() {
 async function locationChanged() {
   readLocation()
   summary.value = undefined
+  workspaceReady.value = false
   try { await prepareWarehouse() } catch (e) { dataError.value = errorMessage(e) }
 }
+async function retryData() {
+  try { await prepareWarehouse() }
+  catch (e) { dataError.value = errorMessage(e) }
+}
 function action(mode: typeof preset.value) {
+  if (mode === 'TRANSFER' && !showTransfers) return
   initialSlotId.value = null
   navigate('operations')
   preset.value = mode
@@ -135,7 +161,10 @@ function expired() {
   if (!user.value) return
   loadVersion++
   user.value = undefined
+  preferences.value = { weightUnit: 'JIN' }
   summary.value = undefined
+  workspaceReady.value = false
+  historyProducts.value = []; historySlots.value = []
   products.value = []
   shelves.value = []
   slots.value = []
@@ -145,15 +174,24 @@ async function refresh() {
   if (!user.value) return
   const version = ++loadVersion
   try {
-    const result = await Promise.all([
-      api<Summary>('/reports/summary'), api<Product[]>('/products'), api<Shelf[]>('/shelves'), api<Slot[]>('/slots'),
-    ])
-    if (loadVersion !== version) return
-    const [nextSummary, nextProducts, nextShelves, nextSlots] = result
-    summary.value = nextSummary
-    products.value = nextProducts
-    shelves.value = nextShelves
-    slots.value = nextSlots
+    if (isAdmin.value) {
+      const [nextSummary, nextProducts, nextShelves, nextSlots] = await Promise.all([
+        api<Summary>('/reports/summary'), api<Product[]>('/products'), api<Shelf[]>('/shelves'), api<Slot[]>('/slots'),
+      ])
+      if (loadVersion !== version) return
+      summary.value = nextSummary
+      workspaceInfo.value = { zone: nextSummary.zone, today: nextSummary.today }
+      products.value = nextProducts; shelves.value = nextShelves; slots.value = nextSlots
+      historyProducts.value = nextProducts; historySlots.value = nextSlots
+    } else {
+      const context = await api<StockWorkspace>('/stock/context')
+      if (loadVersion !== version) return
+      summary.value = undefined
+      workspaceInfo.value = { zone: context.zone, today: context.today }
+      products.value = []; shelves.value = []; slots.value = context.locations
+      historyProducts.value = context.historyProducts; historySlots.value = context.historySlots
+    }
+    workspaceReady.value = true
     dataError.value = ''
   } catch (e) { if (loadVersion === version) dataError.value = errorMessage(e) }
 }
@@ -161,6 +199,7 @@ async function login() {
   if (busy.value) return
   busy.value = true
   error.value = ''
+  loginNotice.value = ''
   try {
     await api('/auth/login', new URLSearchParams({ username: username.value.trim(), password: password.value }))
     user.value = await api<Account>('/auth/me')
@@ -176,6 +215,13 @@ async function login() {
 async function logout() {
   try { await api('/auth/logout', undefined, 'POST'); expired(); error.value = '' }
   catch (e) { dataError.value = errorMessage(e) }
+}
+function passwordChanged() {
+  username.value = user.value?.username ?? username.value
+  expired()
+  password.value = ''
+  error.value = ''
+  loginNotice.value = '密码修改成功，请使用新密码登录。'
 }
 async function refreshUser() {
   try { user.value = await api<Account>('/auth/me') }
@@ -217,6 +263,7 @@ onBeforeUnmount(() => {
         <label class="field">账号<input v-model="username" autocomplete="username" required placeholder="输入账号"></label>
         <label class="field">密码<input v-model="password" autocomplete="current-password" type="password" required placeholder="输入密码"></label>
         <p v-if="error" class="error" role="alert">{{ error }}</p>
+        <p v-if="loginNotice" class="success" role="status">{{ loginNotice }}</p>
         <button class="primary" :disabled="busy">{{ busy ? '登录中…' : '登录' }} <ChevronRight :size="17" /></button>
       </form>
     </section>
@@ -227,7 +274,7 @@ onBeforeUnmount(() => {
         <span><strong>Mini WMS</strong><small>{{ showGeneralWarehouse ? '仓储管理系统' : '鱼胶库存管理' }}</small></span></a>
       <div v-if="warehouses.length > 1" class="warehouse-switch" aria-label="切换仓库">
         <button v-for="w in warehouses" :key="w.id" :class="{ selected: warehouseId === w.id }" @click="switchWarehouse(w.id)">
-          <Warehouse :size="18" /><span>{{ w.name }}<small>{{ w.type === 'FISH_MAW' ? '按格子 · 斤' : '按货架层' }}</small></span>
+          <Warehouse :size="18" /><span>{{ w.name }}<small>{{ w.type === 'FISH_MAW' ? '按格子 · ' + (preferences.weightUnit === 'GRAM' ? '克' : '斤') : '按货架层' }}</small></span>
         </button>
       </div>
       <nav class="side-nav" aria-label="主导航">
@@ -241,6 +288,7 @@ onBeforeUnmount(() => {
         <div v-else class="breadcrumb"><span>{{ warehouse.name }}</span><ChevronRight :size="15" /><strong>{{ title }}</strong></div>
         <div class="profile"><span class="avatar">{{ user.displayName.slice(0, 1) }}</span>
           <span class="profile-name"><strong>{{ user.displayName }}</strong><small>{{ user.role === 'ADMIN' ? '管理员' : '仓库操作员' }}</small></span>
+          <button class="icon-button" title="个人设置" aria-label="个人设置" @click="navigate('settings')"><SettingsIcon :size="19" /></button>
           <button class="icon-button" title="退出登录" aria-label="退出登录" @click="logout"><LogOut :size="19" /></button>
         </div>
       </header>
@@ -249,22 +297,23 @@ onBeforeUnmount(() => {
           <button v-for="w in warehouses" :key="w.id" :class="{ selected: warehouseId === w.id }" @click="switchWarehouse(w.id)">{{ w.name }}</button>
         </div>
         <h1>{{ title }}</h1>
-        <p v-if="dataError" class="error" role="alert">{{ dataError }} <button class="text-button" @click="refresh">重试</button></p>
-        <p v-if="!summary && !dataError" class="empty" role="status">正在读取仓库数据…</p>
-        <template v-if="summary">
-          <Dashboard v-if="page === 'dashboard'" :summary="summary" :mobile="mobile" :warehouse="warehouse" @navigate="navigate" @action="action" />
+        <p v-if="dataError" class="error" role="alert">{{ dataError }} <button class="text-button" @click="retryData">重试</button></p>
+        <p v-if="!workspaceReady && !dataError" class="empty" role="status">正在读取仓库数据…</p>
+        <template v-if="workspaceReady">
+          <Dashboard v-if="page === 'dashboard'" :summary="summary" :restricted="!isAdmin" :today="workspaceInfo.today" :zone="workspaceInfo.zone" :mobile="mobile" :warehouse="warehouse" @navigate="navigate" @action="action" />
           <StockForm v-else-if="page === 'operations'" :key="operationKey" :slots="slots" :products="products" :warehouse="warehouse" :mobile="mobile" :initial-slot-id="initialSlotId" :initial-mode="preset" :token="token" @changed="refresh" />
-          <CatalogView v-else-if="['products', 'shelves', 'inventory'].includes(page)" :page="page" :products="products" :shelves="shelves"
+          <CatalogView v-else-if="isAdmin && ['products', 'shelves', 'inventory'].includes(page)" :page="page" :products="products" :shelves="shelves"
             :slots="slots" :warehouse="warehouse" :user="user" :mobile="mobile" @changed="refresh" @history="openHistory" @stock="openStock" />
-          <History v-else-if="page === 'history'" :warehouse="warehouse" :zone="summary.zone" :mobile="mobile" :initial-slot="historySlot" :products="products" :slots="slots" />
-          <Reports v-else-if="page === 'reports'" :catalog="products" :slots="slots" :warehouse="warehouse" :today="summary.today" :units="summary.units.map(u => u.unit)" />
+          <History v-else-if="page === 'history'" :warehouse="warehouse" :zone="workspaceInfo.zone" :mobile="mobile" :own-only="!isAdmin || mobile" :initial-slot="historySlot" :products="historyProducts" :slots="historySlots" />
+          <Reports v-else-if="isAdmin && page === 'reports' && summary" :catalog="products" :slots="slots" :warehouse="warehouse" :today="summary.today" :units="summary.units.map(u => u.unit)" />
           <Users v-else-if="page === 'users' && user.role === 'ADMIN'" @changed="refreshUser" />
+          <Settings v-else-if="page === 'settings'" :preferences="preferences" @saved="preferences = $event" @password-changed="passwordChanged" />
         </template>
       </main>
-      <nav v-if="mobile" class="mobile-nav" aria-label="手机主导航">
-        <a v-for="item in mobileItems" :key="item.id" :href="url(item.id)" :class="{ active: page === item.id }" :aria-current="page === item.id ? 'page' : undefined" @click.prevent="navigate(item.id)">
+      <nav v-if="mobile" class="mobile-nav" :style="{ '--mobile-nav-count': mobileNavigation.length }" aria-label="手机主导航">
+        <a v-for="item in mobileNavigation" :key="item.id" :href="url(item.id)" :class="{ active: page === item.id }" :aria-current="page === item.id ? 'page' : undefined" @click.prevent="navigate(item.id)">
           <component :is="item.id === 'operations' ? ScanLine : item.icon" :size="21" />
-          {{ ({ dashboard: '首页', operations: '扫码', inventory: '库存', history: '记录' } as Record<string, string>)[item.id] }}
+          {{ ({ dashboard: '首页', operations: '扫码', inventory: '库存', history: '记录', settings: '设置' } as Record<string, string>)[item.id] }}
         </a>
       </nav>
     </div>

@@ -137,7 +137,8 @@ class WarehouseTest {
         var session = session(user.username(), OPERATOR_PASSWORD);
         long slot = f.slots().get(0).id();
         mvc.perform(get("/api/slots/" + slot + "/qrcode")).andExpect(status().isUnauthorized());
-        byte[] png = mvc.perform(get("/api/slots/" + slot + "/qrcode").session(session))
+        mvc.perform(get("/api/slots/" + slot + "/qrcode").session(session)).andExpect(status().isForbidden());
+        byte[] png = mvc.perform(get("/api/slots/" + slot + "/qrcode").session(session("admin", ADMIN_PASSWORD)))
                 .andExpect(status().isOk()).andExpect(content().contentType("image/png")).andReturn().getResponse().getContentAsByteArray();
         var bitmap = new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(
                 ImageIO.read(new ByteArrayInputStream(png)))));

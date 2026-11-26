@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import type { Product } from '../model'
 import AppSelect from './AppSelect.vue'
 
-const props = defineProps<{ products: Product[]; variety: string; headCount: number | '' }>()
+const props = defineProps<{ products: Pick<Product, 'variety' | 'headCount'>[]; variety: string; headCount: number | '' }>()
 const emit = defineEmits<{ 'update:variety': [value: string]; 'update:headCount': [value: number | ''] }>()
 const varieties = computed(() => [...new Set(props.products.map(product => product.variety).filter((value): value is string => !!value))]
   .sort((a, b) => a.localeCompare(b, 'zh-CN')))

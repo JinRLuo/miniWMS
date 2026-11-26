@@ -2,13 +2,15 @@
 import { computed, onMounted, ref } from 'vue'
 import { Search } from 'lucide-vue-next'
 import { api, errorMessage, params } from '../api'
-import { number, type Product, type ProductStats, type Slot, type Trend, type Warehouse } from '../model'
+import { type Product, type ProductStats, type Slot, type Trend, type Warehouse } from '../model'
 import TrendChart from './TrendChart.vue'
 import FishSpecFilter from './FishSpecFilter.vue'
 import AppSelect from './AppSelect.vue'
 import DateInput from './DateInput.vue'
+import { useWeight } from '../weight'
 
 const props = defineProps<{ slots: Slot[]; today: string; warehouse: Warehouse; units: string[]; catalog: Product[] }>()
+const { formatWeight, displayUnit } = useWeight()
 const defaultFrom = new Date(Date.parse(props.today + 'T00:00:00Z') - 6 * 86400000).toISOString().slice(0, 10)
 const from = ref(defaultFrom)
 const to = ref(props.today)
@@ -55,7 +57,7 @@ onMounted(load)
         <label class="field">结束日期<DateInput v-model="to" required /></label>
         <FishSpecFilter v-if="warehouse.type === 'FISH_MAW'" v-model:variety="variety" v-model:head-count="headCount" :products="catalog" />
         <label class="field">统计维度<AppSelect v-model="period" label="统计维度" :options="[{value: 'DAY', label: '按日'}, {value: 'WEEK', label: '按周'}, {value: 'MONTH', label: '按月'}]" /></label>
-        <label class="field">趋势与排行单位<AppSelect v-model="unit" label="趋势与排行单位" :options="(units.length ? units : [unit]).map(u => ({ value: u, label: u }))" /></label>
+        <label class="field">趋势与排行单位<AppSelect v-model="unit" label="趋势与排行单位" :options="(units.length ? units : [unit]).map(u => ({ value: u, label: displayUnit(u) }))" /></label>
       </div>
       <div class="filter-actions"><button class="primary" :disabled="busy"><Search :size="17" /> {{ busy ? '计算中…' : '查看统计' }}</button></div>
     </form>
@@ -64,14 +66,14 @@ onMounted(load)
   </section>
   <div class="dashboard-grid">
     <section class="panel">
-      <div class="panel-head"><div><h2>出入库趋势</h2><p>按有效出入库流水统计 · {{ applied.unit }}</p></div><div class="legend"><span>入库</span><span>出库</span></div></div>
+      <div class="panel-head"><div><h2>出入库趋势</h2><p>按有效出入库流水统计 · {{ displayUnit(applied.unit) }}</p></div><div class="legend"><span>入库</span><span>出库</span></div></div>
       <TrendChart :data="trend" :unit="applied.unit" />
     </section>
     <section class="panel">
       <div class="panel-head"><div><h2>商品出库排行</h2><p>所选期间</p></div></div>
       <div v-if="ranked.length" class="rank-list">
         <div v-for="product in ranked" :key="product.id">
-          <div><span>{{ product.name }}</span><strong>{{ number(product.outbound) }} {{ product.unit }}</strong></div>
+          <div><span>{{ product.name }}</span><strong>{{ formatWeight(product.outbound, product.unit) }} {{ displayUnit(product.unit) }}</strong></div>
           <div class="bar-track"><i :style="{ width: (100 * product.outbound / largest) + '%' }"></i></div>
         </div>
       </div>
@@ -84,11 +86,11 @@ onMounted(load)
       <table v-if="products.length">
         <thead><tr><th>商品</th><th>期间入库</th><th>期间出库</th><th>净入库</th><th>当前库存</th><th>库位</th></tr></thead>
         <tbody><template v-for="p in products" :key="p.id">
-          <tr><td>{{ p.name }}<small class="code">{{ p.sku }}</small></td><td>{{ number(p.inbound) }} {{ p.unit }}</td>
-            <td>{{ number(p.outbound) }} {{ p.unit }}</td><td>{{ number(p.inbound - p.outbound) }} {{ p.unit }}</td><td>{{ number(p.quantity) }} {{ p.unit }}</td>
+          <tr><td>{{ p.name }}<small class="code">{{ p.sku }}</small></td><td>{{ formatWeight(p.inbound, p.unit) }} {{ displayUnit(p.unit) }}</td>
+            <td>{{ formatWeight(p.outbound, p.unit) }} {{ displayUnit(p.unit) }}</td><td>{{ formatWeight(p.inbound - p.outbound, p.unit) }} {{ displayUnit(p.unit) }}</td><td>{{ formatWeight(p.quantity, p.unit) }} {{ displayUnit(p.unit) }}</td>
             <td><button class="text-button" :aria-expanded="expanded === p.id" @click="expanded = expanded === p.id ? undefined : p.id">库位分布</button></td></tr>
           <tr v-if="expanded === p.id" class="distribution"><td colspan="6">
-            <div v-for="slot in slots.filter(s => s.productId === p.id)" :key="slot.id"><span class="code">{{ slot.code }}</span> {{ number(slot.quantity) }} {{ p.unit }}</div>
+            <div v-for="slot in slots.filter(s => s.productId === p.id)" :key="slot.id"><span class="code">{{ slot.code }}</span> {{ formatWeight(slot.quantity, p.unit) }} {{ displayUnit(p.unit) }}</div>
             <span v-if="!slots.some(s => s.productId === p.id)" class="muted">暂无绑定库位。</span>
           </td></tr>
         </template></tbody>

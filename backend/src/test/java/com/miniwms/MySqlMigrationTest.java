@@ -102,6 +102,12 @@ class MySqlMigrationTest {
             try (var r=s.executeQuery("SELECT COUNT(*) FROM flyway_schema_history WHERE version='2' AND success=TRUE")) {
                 assertThat(r.next()).isTrue(); assertThat(r.getInt(1)).isEqualTo(1);
             }
+            s.execute("INSERT INTO user_preferences(user_id,weight_unit) VALUES(1,'GRAM')");
+            try (var r=s.executeQuery("SELECT weight_unit FROM user_preferences WHERE user_id=1")) {
+                assertThat(r.next()).isTrue(); assertThat(r.getString(1)).isEqualTo("GRAM");
+            }
+            assertThatThrownBy(() -> s.execute("UPDATE user_preferences SET weight_unit='KG' WHERE user_id=1"))
+                    .isInstanceOf(java.sql.SQLException.class);
         }
     }
 }

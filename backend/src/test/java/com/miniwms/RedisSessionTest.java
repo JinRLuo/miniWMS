@@ -113,6 +113,29 @@ class RedisSessionTest {
                 repository.save(expired);
                 assertThat(get(expiryClient, "/auth/me").statusCode()).isEqualTo(401);
 
+                var passwordUser = accounts.save(null, new Accounts.Form("redis-password-user", "密码测试", Accounts.Role.OPERATOR,
+                        true, PASSWORD), admin);
+                var passwordCookies = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
+                var passwordClient = HttpClient.newBuilder().cookieHandler(passwordCookies).build();
+                var staleCookies = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
+                var staleClient = HttpClient.newBuilder().cookieHandler(staleCookies).build();
+                login(passwordClient, passwordUser.username(), PASSWORD);
+                login(staleClient, passwordUser.username(), PASSWORD);
+                String passwordSession = sessionId(passwordCookies), staleSession = sessionId(staleCookies);
+                String passwordCsrf = json.readTree(get(passwordClient, "/auth/csrf").body()).get("token").asText();
+                String newPassword = PASSWORD + "-new";
+                var changed = passwordClient.send(HttpRequest.newBuilder(URI.create(base + "/auth/password"))
+                        .header("Content-Type", "application/json").header("X-XSRF-TOKEN", passwordCsrf)
+                        .PUT(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(new Accounts.PasswordChange(PASSWORD, newPassword, newPassword))))
+                        .build(), HttpResponse.BodyHandlers.ofByteArray());
+                assertThat(changed.statusCode()).isEqualTo(204);
+                assertThat(repository.findById(passwordSession)).isNull();
+                assertThat(get(passwordClient, "/auth/me").statusCode()).isEqualTo(401);
+                assertThat(get(staleClient, "/auth/me").statusCode()).isEqualTo(401);
+                assertThat(repository.findById(staleSession)).isNull();
+                login(passwordClient, passwordUser.username(), newPassword);
+                assertThat(get(passwordClient, "/auth/me").statusCode()).isEqualTo(200);
+
                 String csrf = json.readTree(get(client, "/auth/csrf").body()).get("token").asText();
                 assertThat(send(client, "/auth/logout", "", csrf).statusCode()).isEqualTo(204);
                 assertThat(repository.findById(sessionId)).isNull();

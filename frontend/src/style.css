@@ -178,6 +178,23 @@ textarea { resize: vertical; }
 .form-stack fieldset { padding: 0; border: 0; min-width: 0; }
 .field { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; align-content: start; font-size: 14px; font-weight: 650; }
 .field :is(input, select, textarea, small) { font-weight: 450; }
+.specification-lock-notice { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid #d5e6dc; border-radius: 10px; background: #f1f8f4; color: #2a604b; }
+.specification-lock-notice > svg { margin-top: 2px; }
+.specification-lock-notice strong { font-size: 14px; }
+.specification-lock-notice p { margin-top: 3px; color: #587364; font-size: 13px; line-height: 1.65; }
+.preferences-panel { max-width: 760px; }
+.preferences-panel > .panel-head { border-bottom: 1px solid var(--stroke); }
+.preferences-panel > .panel-head > svg { color: #6c8a7a; }
+.preferences-panel form { display: grid; gap: 18px; padding: 20px; }
+.weight-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.weight-option { display: flex; align-items: center; gap: 12px; padding: 16px; border: 1px solid var(--stroke); border-radius: 12px; cursor: pointer; }
+.weight-option.selected { border-color: #268767; background: #f0f8f3; box-shadow: 0 0 0 1px #268767; }
+.weight-option input { flex: none; width: 18px; height: 18px; min-height: 0; padding: 0; accent-color: var(--green); }
+.weight-option strong { display: block; font-size: 19px; }
+.weight-option small { display: block; margin-top: 3px; }
+.preferences-note { color: var(--muted); font-size: 13px; line-height: 1.75; }
+.preferences-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
+.preferences-saved { display: inline-flex; align-items: center; gap: 6px; color: var(--green); font-size: 13px; }
 .form-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .mobile-stock-preview { display: grid; gap: 2px; border-radius: 8px; background: #eef6f1; padding: 9px 12px; font-size: 13px; }
 .preview > h2 { margin: 11px 0 10px; }
@@ -241,7 +258,7 @@ dialog::backdrop { background: #102d2470; backdrop-filter: blur(3px); }
 .mobile-shell .hero-graphic { opacity: .24; right: -163px; }
 .mobile-brand { font-size: 18px; }
 .mobile-brand .brand-icon { width: 34px; height: 34px; border-radius: 8px; }
-.mobile-nav { background: #fff; border-top: 1px solid var(--stroke); z-index: 3; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); position: fixed; bottom: 0; inset-inline: 0; margin-inline: auto; width: min(100%, 610px); padding: 7px 7px calc(7px + env(safe-area-inset-bottom)); }
+.mobile-nav { background: #fff; border-top: 1px solid var(--stroke); z-index: 3; display: grid; grid-template-columns: repeat(var(--mobile-nav-count, 5), minmax(0, 1fr)); position: fixed; bottom: 0; inset-inline: 0; margin-inline: auto; width: min(100%, 610px); padding: 7px 7px calc(7px + env(safe-area-inset-bottom)); }
 .mobile-nav a { color: #506c60; display: grid; gap: 2px; justify-items: center; padding: 5px 1px; font-size: 12px; border-radius: 8px; }
 .mobile-nav a.active { color: #0b684e; background: #e8f6ef; font-weight: 740; }
 .mobile-shell .table-scroll :is(table, tbody) { display: block; white-space: normal; }
@@ -358,3 +375,4 @@ dialog::backdrop { background: #102d2470; backdrop-filter: blur(3px); }
 }
 
 .report-scope { margin: 0 18px 14px; color: var(--muted); font-size: 13px; }
+.record-scope { margin: 16px 20px 0; padding: 10px 13px; border: 1px solid #d5e6dc; border-radius: 9px; background: #f1f8f4; color: #2a604b; font-size: 13px; line-height: 1.7; }

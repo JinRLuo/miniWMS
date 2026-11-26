@@ -110,11 +110,16 @@ class Reports {
     }
 
     void export(Query query, Writer writer) throws IOException {
+        export(query, writer, UserPreferences.WeightUnit.JIN);
+    }
+
+    void export(Query query, Writer writer, UserPreferences.WeightUnit weightUnit) throws IOException {
         writer.write("\uFEFF");
         csv(writer, "时间", "操作", "单据", "SKU", "商品", "库位", "数量", "变动前", "变动后", "操作人", "备注", "单位", "头数");
         db.jdbc.query(MOVEMENT_COLUMNS + MOVEMENTS + query.sql() + " ORDER BY m.created_at DESC,m.id DESC",
                 (ResultSet row) -> {
                     var m = MOVEMENT.mapRow(row, row.getRow());
+                    var displayUnit = m.headCount() == null ? UserPreferences.WeightUnit.JIN : weightUnit;
                     try {
                         csv(writer, Instant.ofEpochMilli(m.createdAt()).atZone(zone).toOffsetDateTime().toString(),
                                 switch (m.type()) {
@@ -123,8 +128,9 @@ class Reports {
                                     case TRANSFER_OUT -> "移库转出";
                                     case TRANSFER_IN -> "移库转入";
                                 },
-                                m.documentNo(), m.sku(), m.product(), m.slot(), m.quantity().stripTrailingZeros().toPlainString(),
-                                m.beforeQty().stripTrailingZeros().toPlainString(), m.afterQty().stripTrailingZeros().toPlainString(), m.operator(), m.note(), m.unit(), m.headCount() == null ? "" : m.headCount().toString());
+                                m.documentNo(), m.sku(), m.product(), m.slot(), displayUnit.display(m.quantity(), m.unit()).stripTrailingZeros().toPlainString(),
+                                displayUnit.display(m.beforeQty(), m.unit()).stripTrailingZeros().toPlainString(),
+                                displayUnit.display(m.afterQty(), m.unit()).stripTrailingZeros().toPlainString(), m.operator(), m.note(), displayUnit.label(m.unit()), m.headCount() == null ? "" : m.headCount().toString());
                     } catch (IOException ex) {
                         throw new UncheckedIOException(ex);
                     }

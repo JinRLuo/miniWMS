@@ -35,9 +35,9 @@ class Security {
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/csrf", "/api/auth/login", "/error").permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/products", "/api/shelves").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/products/*", "/api/shelves/*", "/api/slots/*").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**", "/api/products", "/api/products/**", "/api/shelves", "/api/shelves/**", "/api/reports/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/slots", "/api/slots/*/qrcode").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/slots/*").hasRole("ADMIN")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll())
                 .requestCache(cache -> cache.disable())

@@ -27,6 +27,7 @@ export interface Product {
   variety: string | null
   headCount: number | null
   estimatedCount: number | null
+  specificationLocked: boolean
 }
 export interface Shelf {
   id: number
@@ -54,6 +55,15 @@ export interface Slot {
   variety: string | null
   headCount: number | null
   estimatedCount: number | null
+}
+export type ProductChoice = Pick<Product, 'id' | 'sku' | 'name' | 'active' | 'variety' | 'headCount'>
+export type SlotChoice = Pick<Slot, 'id' | 'code' | 'active'>
+export interface StockWorkspace {
+  locations: Slot[]
+  historyProducts: ProductChoice[]
+  historySlots: SlotChoice[]
+  zone: string
+  today: string
 }
 export interface Summary {
   products: number

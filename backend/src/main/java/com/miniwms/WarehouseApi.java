@@ -10,6 +10,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -49,6 +50,16 @@ class WarehouseApi {
 
     @GetMapping("/auth/me")
     Accounts.View me(@AuthenticationPrincipal Accounts.Principal user) { return user.view(); }
+
+    @PutMapping("/auth/password")
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    void changePassword(@Valid @RequestBody Accounts.PasswordChange form,
+                        @AuthenticationPrincipal Accounts.Principal user, HttpServletRequest request) {
+        accounts.changePassword(user.id(), form);
+        var session = request.getSession(false);
+        if (session != null) session.invalidate();
+        SecurityContextHolder.clearContext();
+    }
 
     @GetMapping("/admin/users")
     List<Accounts.View> users() { return accounts.list(); }

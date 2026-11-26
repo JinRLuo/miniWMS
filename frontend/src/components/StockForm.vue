@@ -4,19 +4,30 @@ import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Check, PackageCheck } from
 import { api, ApiError, errorMessage } from '../api'
 import { includes, number, requestId, decimal, estimate, type Product, type Slot, type StockResult, type Warehouse } from '../model'
 import AppSelect from './AppSelect.vue'
+import { useWeight } from '../weight'
+import { showTransfers } from '../features'
 
 const ScanCamera = defineAsyncComponent(() => import('./ScanCamera.vue'))
 const props = defineProps<{
   slots: Slot[]; products: Product[]; mobile: boolean; initialMode: 'IN' | 'OUT' | 'TRANSFER'; token: string | null; warehouse: Warehouse; initialSlotId?: number | null
 }>()
 const emit = defineEmits<{ changed: [] }>()
-const mode = ref(props.initialMode)
+const mode = ref(props.initialMode === 'TRANSFER' && !showTransfers ? 'IN' : props.initialMode)
+const operationChoices = [
+  { key: 'IN', label: '入库', icon: ArrowDownLeft },
+  { key: 'OUT', label: '出库', icon: ArrowUpRight },
+  { key: 'TRANSFER', label: '移库', icon: ArrowLeftRight },
+] as const
 const source = ref<number | ''>(props.initialSlotId ?? '')
 const fish = computed(() => props.warehouse.type === 'FISH_MAW')
+const { unitLabel, weightStep, formatWeight, displayWeight, baseWeight, displayUnit } = useWeight()
 const slotLabel = computed(() => fish.value ? '格子' : '货架层')
 const target = ref<number | ''>('')
-const quantity = ref<number | ''>(1)
-const documentNo = ref('')
+const quantity = ref<number | ''>('')
+const quantityInput = computed<number | ''>({
+  get: () => quantity.value === '' ? '' : fish.value ? displayWeight(quantity.value) : quantity.value,
+  set: value => { quantity.value = value === '' ? '' : fish.value ? baseWeight(value) : value },
+})
 const note = ref('')
 const sourceSearch = ref('')
 const targetSearch = ref('')
@@ -48,7 +59,7 @@ const maximum = computed(() => {
 const remaining = computed(() => from.value ? decimal(from.value.quantity + qty.value * (mode.value === 'IN' ? 1 : -1)) : 0)
 const validation = computed(() => {
   if (!from.value) return ''
-  if (qty.value > 0 && (fish.value ? Math.abs(qty.value * 1000 - Math.round(qty.value * 1000)) > 1e-7 : !Number.isInteger(qty.value))) return fish.value ? '重量最多支持三位小数' : '操作数量必须为整数'
+  if (qty.value > 0 && (fish.value ? Math.abs(qty.value * 1000 - Math.round(qty.value * 1000)) > 1e-7 : !Number.isInteger(qty.value))) return fish.value ? '重量最小精度为 ' + weightStep.value + unitLabel.value : '操作数量必须为整数'
   if (!from.value.active) return '该库位已停用'
   if (from.value.productId === null) return '该库位尚未绑定商品，请在货架管理中绑定'
   if (mode.value === 'IN' && !from.value.productActive) return '商品已停用，无法入库'
@@ -59,13 +70,15 @@ const validation = computed(() => {
     if (to.value.productId === null && !from.value.productActive) return '停用商品不能绑定到空货架层'
   }
   if (maximum.value === 0) return '当前库位没有可用操作数量'
-  if (qty.value > maximum.value) return '可操作数量最多为 ' + number(maximum.value)
+  if (qty.value > maximum.value) return '可操作数量最多为 ' + formatWeight(maximum.value, from.value.unit) + ' ' + displayUnit(from.value.unit)
   return ''
 })
 const canSubmit = computed(() => from.value && qty.value > 0 && !validation.value && (!isTransfer.value || to.value))
 const total = computed(() => props.products.find(p => p.id === from.value?.productId)?.quantity)
 
 function operations(next: 'IN' | 'OUT' | 'TRANSFER') {
+  if (next === 'TRANSFER' && !showTransfers) return
+  if (mode.value !== next) quantity.value = ''
   mode.value = next
   error.value = ''
   result.value = undefined
@@ -113,7 +126,7 @@ async function submit() {
   const common = { requestId: requestId(), productId: from.value.productId, quantity: qty.value, note: note.value.trim() }
   const body = isTransfer.value
     ? { ...common, sourceSlotId: from.value.id, targetSlotId: to.value?.id }
-    : { ...common, slotId: from.value.id, documentNo: documentNo.value.trim() }
+    : { ...common, slotId: from.value.id }
   pending.value = { path, body }
   await send()
 }
@@ -126,7 +139,6 @@ async function send() {
   try {
     result.value = await api<StockResult>(request.path, request.body)
     pending.value = undefined
-    documentNo.value = ''
     note.value = ''
     quantity.value = ''
     emit('changed')
@@ -148,7 +160,7 @@ async function send() {
   <div class="operation-grid">
     <section class="panel form-panel">
       <div class="tabs" aria-label="库存操作类型">
-        <button v-for="choice in [{ key: 'IN', label: '入库', icon: ArrowDownLeft }, { key: 'OUT', label: '出库', icon: ArrowUpRight }, { key: 'TRANSFER', label: '移库', icon: ArrowLeftRight }] as const"
+        <button v-for="choice in operationChoices.filter(choice => showTransfers || choice.key !== 'TRANSFER')"
           :key="choice.key" :class="{ selected: mode === choice.key }" :disabled="busy || !!pending" @click="operations(choice.key)">
           <component :is="choice.icon" :size="18" />{{ choice.label }}
         </button>
@@ -161,7 +173,7 @@ async function send() {
             <div class="code-entry"><input v-model="sourceSearch" :aria-label="'输入' + slotLabel + '编号'" :placeholder="fish ? '输入格子编号，如 YJ01-02-03' : '输入货架层编号或搜索商品'" @keydown.enter.prevent="locate()"><button type="button" class="secondary" @click="locate()">定位</button></div>
             <AppSelect id="source-slot" v-model="source" :label="isTransfer ? '来源' + slotLabel : slotLabel" required
               :options="[{ value: '', label: '请选择' + slotLabel, disabled: true }, ...sourceOptions.map(slot => ({ value: slot.id, label: slot.code,
-                description: (slot.productName || '未绑定') + ' · ' + number(slot.quantity) + ' ' + (slot.unit || '') + (slot.active ? '' : ' · 已停用') }))]" />
+                description: (slot.productName || '未绑定') + ' · ' + formatWeight(slot.quantity, slot.unit) + ' ' + displayUnit(slot.unit) + (slot.active ? '' : ' · 已停用') }))]" />
             <small v-if="initialLoading">正在读取二维码对应的{{ slotLabel }}…</small>
             <small v-else-if="fish && !selectableSlots.length">暂无已绑定商品的格子，请先在货架管理中绑定鱼胶规格。</small>
           </div>
@@ -171,32 +183,29 @@ async function send() {
             <div class="code-entry"><input v-model="targetSearch" :aria-label="'输入目标' + slotLabel + '编号'" placeholder="输入目标库位完整编号" @keydown.enter.prevent="locate(true)"><button type="button" class="secondary" @click="locate(true)">定位</button></div>
             <AppSelect id="target-slot" v-model="target" :label="'目标' + slotLabel" required
               :options="[{ value: '', label: '请选择目标' + slotLabel, disabled: true }, ...targetOptions.map(slot => ({ value: slot.id, label: slot.code,
-                description: (slot.productName || '未绑定') + ' · ' + number(slot.quantity) + ' ' + (slot.unit || '') + (slot.active ? '' : ' · 已停用') }))]" />
+                description: (slot.productName || '未绑定') + ' · ' + formatWeight(slot.quantity, slot.unit) + ' ' + displayUnit(slot.unit) + (slot.active ? '' : ' · 已停用') }))]" />
             <small v-if="to && to.active && to.productId === null">移库成功后将自动绑定来源商品。</small>
           </div>
           <div v-if="fish && from?.productId" class="fish-stock-info">
             <strong>{{ from.variety }} · {{ from.headCount }}头</strong>
-            <span>当前 {{ number(from.quantity) }}斤 · 约{{ number(from.estimatedCount ?? 0) }}个</span>
-            <small>个数按重量估算，出入库以实际斤数为准。</small>
+            <span>当前 {{ formatWeight(from.quantity) }}{{ unitLabel }} · 约{{ number(from.estimatedCount ?? 0) }}个</span>
+            <small>个数按重量估算，出入库以实际重量为准。头数表示每斤个数。</small>
           </div>
-          <div class="form-columns">
-            <label class="field">{{ fish ? '操作重量（斤）' : '操作数量' }}<input v-model.number="quantity" type="number" :inputmode="fish ? 'decimal' : 'numeric'" :min="fish ? 0.001 : 1" :step="fish ? 0.001 : 1" :max="maximum" required></label>
-            <label v-if="!isTransfer" class="field">单据编号（选填）<input v-model="documentNo" maxlength="80" placeholder="如订单号"></label>
-          </div>
+          <label class="field">{{ fish ? '操作重量（' + unitLabel + '）' : '操作数量' }}<input v-model.number="quantityInput" type="number" :inputmode="fish ? 'decimal' : 'numeric'" :placeholder="fish ? '请输入操作重量' : '请输入操作数量'" :min="fish ? weightStep : 1" :step="fish ? weightStep : 1" :max="fish ? displayWeight(maximum) : maximum" required></label>
           <label class="field">备注（选填）<textarea v-model="note" maxlength="500" rows="2" placeholder="填写操作说明"></textarea></label>
         </fieldset>
         <div v-if="mobile && from && canSubmit && !result" class="mobile-stock-preview" aria-live="polite">
           <strong>预计库存</strong>
-          <span>{{ from.code }} · {{ number(from.quantity) }} → {{ number(remaining) }} {{ from.unit }}</span>
-          <span v-if="isTransfer && to">{{ to.code }} · {{ number(to.quantity) }} → {{ number(decimal(to.quantity + qty)) }} {{ from.unit }}</span>
+          <span>{{ from.code }} · {{ formatWeight(from.quantity, from.unit) }} → {{ formatWeight(remaining, from.unit) }} {{ displayUnit(from.unit) }}</span>
+          <span v-if="isTransfer && to">{{ to.code }} · {{ formatWeight(to.quantity, from.unit) }} → {{ formatWeight(decimal(to.quantity + qty), from.unit) }} {{ displayUnit(from.unit) }}</span>
           <span v-if="fish && canSubmit">预计约{{ number(estimate(remaining, from.headCount) ?? 0) }}个</span>
-          <span v-if="isTransfer && total !== undefined">商品总库存 · {{ number(total) }} {{ from.unit }}</span>
+          <span v-if="isTransfer && total !== undefined">商品总库存 · {{ formatWeight(total, from.unit) }} {{ displayUnit(from.unit) }}</span>
         </div>
         <p v-if="error || validation" class="error" role="alert">{{ error || validation }}</p>
         <div v-if="result" class="success" role="status">
           <Check :size="19" /><div><strong>操作成功</strong><small class="break">{{ result.documentNo }}</small>
           <span v-for="change in result.changes" :key="change.slotId" class="result-change">
-            {{ slots.find(slot => slot.id === change.slotId)?.code }} {{ number(change.beforeQty) }} → {{ number(change.afterQty) }} {{ from?.unit }}
+            {{ slots.find(slot => slot.id === change.slotId)?.code }} {{ formatWeight(change.beforeQty, from?.unit) }} → {{ formatWeight(change.afterQty, from?.unit) }} {{ displayUnit(from?.unit) }}
           </span></div>
         </div>
         <button v-if="pending" type="button" class="primary" :disabled="busy" @click="send">{{ busy ? '正在提交…' : '重试并确认结果' }}</button>
@@ -213,12 +222,12 @@ async function send() {
         <h3>{{ from.productName || '未绑定商品' }}</h3>
         <p class="muted">{{ [from.sku, from.specification].filter(Boolean).join(' · ') }}</p>
         <dl class="detail-list">
-          <div><dt>{{ from.code }} 当前库存</dt><dd>{{ number(from.quantity) }} {{ from.unit }}</dd></div>
-          <div v-if="canSubmit"><dt>{{ from.code }} 预计库存</dt><dd>{{ number(remaining) }} {{ from.unit }}</dd></div>
-          <div v-if="isTransfer && to"><dt>{{ to.code }} 当前库存</dt><dd>{{ number(to.quantity) }} {{ from.unit }}</dd></div>
-          <div v-if="isTransfer && to && canSubmit"><dt>{{ to.code }} 预计库存</dt><dd>{{ number(decimal(to.quantity + qty)) }} {{ from.unit }}</dd></div>
+          <div><dt>{{ from.code }} 当前库存</dt><dd>{{ formatWeight(from.quantity, from.unit) }} {{ displayUnit(from.unit) }}</dd></div>
+          <div v-if="canSubmit"><dt>{{ from.code }} 预计库存</dt><dd>{{ formatWeight(remaining, from.unit) }} {{ displayUnit(from.unit) }}</dd></div>
+          <div v-if="isTransfer && to"><dt>{{ to.code }} 当前库存</dt><dd>{{ formatWeight(to.quantity, from.unit) }} {{ displayUnit(from.unit) }}</dd></div>
+          <div v-if="isTransfer && to && canSubmit"><dt>{{ to.code }} 预计库存</dt><dd>{{ formatWeight(decimal(to.quantity + qty), from.unit) }} {{ displayUnit(from.unit) }}</dd></div>
           <div v-if="fish && canSubmit"><dt>预计估算个数</dt><dd>约{{ number(estimate(remaining, from.headCount) ?? 0) }}个</dd></div>
-          <div v-if="total !== undefined"><dt>商品总库存</dt><dd>{{ number(total) }} {{ from.unit }}</dd></div>
+          <div v-if="total !== undefined"><dt>商品总库存</dt><dd>{{ formatWeight(total, from.unit) }} {{ displayUnit(from.unit) }}</dd></div>
         </dl>
       </template>
     </aside>

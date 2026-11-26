@@ -22,6 +22,9 @@ class Accounts implements UserDetailsService {
     record Form(@NotBlank @Pattern(regexp="[A-Za-z0-9._-]{2,64}") String username,
                 @NotBlank @Size(max=100) String displayName, @NotNull Role role, @NotNull Boolean active,
                 @Size(min=12, max=72) String password) {}
+    record PasswordChange(@NotEmpty @Size(max=72) String currentPassword,
+                          @NotBlank @Size(min=12, max=72) String newPassword,
+                          @NotBlank @Size(max=72) String confirmPassword) {}
 
     record Principal(long id, String username, String displayName, String passwordHash, Role role, boolean active)
             implements UserDetails {
@@ -59,6 +62,20 @@ class Accounts implements UserDetailsService {
 
     List<View> list() {
         return db.jdbc.query("SELECT * FROM users ORDER BY id", USER).stream().map(Principal::view).toList();
+    }
+
+    @Transactional(isolation=Isolation.READ_COMMITTED)
+    public void changePassword(long userId, PasswordChange form) {
+        db.lockActor(userId);
+        var current = find(userId);
+        if (form.currentPassword().getBytes(StandardCharsets.UTF_8).length > 72
+                || !encoder.matches(form.currentPassword(), current.passwordHash()))
+            throw ApiError.bad("当前密码不正确，请重新输入");
+        if (!form.newPassword().equals(form.confirmPassword())) throw ApiError.bad("两次输入的新密码不一致");
+        if (form.currentPassword().equals(form.newPassword())) throw ApiError.bad("新密码不能与当前密码相同");
+        String password = hash(form.newPassword());
+        db.jdbc.update("UPDATE users SET password_hash=? WHERE id=?", password, userId);
+        db.audit(userId, "PASSWORD_CHANGE", userId);
     }
 
     @Transactional(isolation=Isolation.READ_COMMITTED)

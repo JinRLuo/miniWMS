@@ -11,8 +11,9 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 @RequestMapping("/api")
 class ReportApi {
     private final Reports reports;
+    private final UserPreferences preferences;
 
-    ReportApi(Reports reports) { this.reports = reports; }
+    ReportApi(Reports reports, UserPreferences preferences) { this.reports = reports; this.preferences = preferences; }
 
     @GetMapping("/reports/summary")
     Reports.Summary summary(@RequestParam(defaultValue="1") long warehouseId) { return reports.summary(warehouseId); }
@@ -48,11 +49,12 @@ class ReportApi {
     ResponseEntity<StreamingResponseBody> export(@ModelAttribute Reports.Filters filters,
             @AuthenticationPrincipal Accounts.Principal actor) {
         var query = reports.exportQuery(filters, actor);
+        var weightUnit = preferences.get(actor.id()).weightUnit();
         return ResponseEntity.ok().header("Content-Disposition", "attachment; filename=stock-movements.csv")
                 .header("Content-Type", "text/csv; charset=UTF-8")
                 .body(stream -> {
                     var writer = new java.io.OutputStreamWriter(stream, java.nio.charset.StandardCharsets.UTF_8);
-                    reports.export(query, writer);
+                    reports.export(query, writer, weightUnit);
                     writer.flush();
                 });
     }
