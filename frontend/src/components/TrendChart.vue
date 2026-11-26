@@ -8,7 +8,7 @@ import type { Trend } from '../model'
 
 use([BarChart, GridComponent, TooltipComponent, CanvasRenderer])
 
-const props = defineProps<{ data: Trend[] }>()
+const props = defineProps<{ data: Trend[]; unit?: string }>()
 const element = ref<HTMLDivElement>()
 let chart: EChartsType | undefined
 let observer: ResizeObserver | undefined
@@ -23,14 +23,14 @@ function render() {
       axisTick: { show: false }, axisLabel: { color: '#65766f' }, axisLine: { lineStyle: { color: '#dae4df' } },
     },
     yAxis: {
-      type: 'value', minInterval: 1, min: 0,
+      type: 'value', minInterval: props.unit === '斤' ? 0.001 : 1, min: 0,
       max: (range: { max: number }) => range.max > 0 ? null : 10,
       axisLabel: { color: '#65766f' }, splitLine: { lineStyle: { color: '#e6eeea', type: 'dashed' } },
     },
     series: [
-      { name: '入库', type: 'bar', data: props.data.map(value => value.inbound), barMaxWidth: 28,
+      { name: '入库（' + (props.unit || '数量') + '）', type: 'bar', data: props.data.map(value => value.inbound), barMaxWidth: 28,
         itemStyle: { color: '#178066', borderRadius: [4, 4, 0, 0] } },
-      { name: '出库', type: 'bar', data: props.data.map(value => value.outbound), barMaxWidth: 28,
+      { name: '出库（' + (props.unit || '数量') + '）', type: 'bar', data: props.data.map(value => value.outbound), barMaxWidth: 28,
         itemStyle: { color: '#b8d9cc', borderRadius: [4, 4, 0, 0] } },
     ],
   })
@@ -43,7 +43,7 @@ onMounted(() => {
   observer = new ResizeObserver(() => chart?.resize())
   observer.observe(element.value)
 })
-watch(() => props.data, render)
+watch(() => [props.data, props.unit], render)
 onBeforeUnmount(() => { observer?.disconnect(); chart?.dispose() })
 </script>
 

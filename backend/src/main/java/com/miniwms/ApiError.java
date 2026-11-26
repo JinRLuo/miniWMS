@@ -39,7 +39,7 @@ class ApiError {
 
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
     ResponseEntity<Map<String, String>> invalidInput() {
-        return status(bad("请求字段格式无效，库存数量必须为整数"));
+        return status(bad("请求字段格式无效，请检查数量、头数和编号"));
     }
 
     @ExceptionHandler(DuplicateKeyException.class)

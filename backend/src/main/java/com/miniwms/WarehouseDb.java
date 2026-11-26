@@ -1,5 +1,7 @@
 package com.miniwms;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -22,12 +24,17 @@ class WarehouseDb {
 
     record Slot(long id, long shelfId, String shelfCode, String code, int layerNo,
                 Long productId, String sku, String productName, String unit, String specification,
-                int quantity, boolean active, boolean productActive) {}
+                BigDecimal quantity, boolean active, boolean productActive, long warehouseId, int cellNo,
+                String variety, Integer headCount) {
+        public BigDecimal getEstimatedCount() {
+            return headCount == null ? null : quantity.multiply(BigDecimal.valueOf(headCount)).setScale(0, RoundingMode.HALF_UP);
+        }
+    }
 
     static final String SLOT_VIEW = """
         SELECT s.id, s.shelf_id, h.code AS shelf_code, s.code, s.layer_no, s.product_id,
                p.sku, p.name AS product_name, p.unit, p.specification, i.quantity,
-               s.active, p.active AS product_active
+               s.active, p.active AS product_active, h.warehouse_id, s.cell_no, p.variety, p.head_count
         FROM shelf_slots s JOIN shelves h ON h.id=s.shelf_id JOIN inventory i ON i.slot_id=s.id
         LEFT JOIN products p ON p.id=s.product_id
         """;
@@ -36,7 +43,8 @@ class WarehouseDb {
             r.getLong("id"), r.getLong("shelf_id"), r.getString("shelf_code"), r.getString("code"),
             r.getInt("layer_no"), r.getObject("product_id", Long.class), r.getString("sku"),
             r.getString("product_name"), r.getString("unit"), r.getString("specification"),
-            r.getInt("quantity"), r.getBoolean("active"), r.getBoolean("product_active"));
+            r.getBigDecimal("quantity"), r.getBoolean("active"), r.getBoolean("product_active"),
+            r.getLong("warehouse_id"), r.getInt("cell_no"), r.getString("variety"), r.getObject("head_count", Integer.class));
 
     Timestamp now() {
         return Timestamp.from(Instant.now(clock));
@@ -60,7 +68,11 @@ class WarehouseDb {
     }
 
     List<Slot> slots() {
-        return jdbc.query(SLOT_VIEW + " ORDER BY h.code, s.layer_no", SLOT);
+        return slots(1);
+    }
+
+    List<Slot> slots(long warehouseId) {
+        return jdbc.query(SLOT_VIEW + " WHERE h.warehouse_id=? ORDER BY h.code, s.layer_no, s.cell_no", SLOT, warehouseId);
     }
 
     Slot slot(long id) {
@@ -69,6 +81,15 @@ class WarehouseDb {
 
     Slot resolve(UUID token) {
         return one(SLOT_VIEW + " WHERE s.qr_token=?", SLOT, "货架二维码无效", token.toString());
+    }
+
+    Slot byCode(String code, long warehouseId) {
+        return one(SLOT_VIEW + " WHERE UPPER(s.code)=? AND h.warehouse_id=?", SLOT, "当前仓库没有此库位编号",
+                code.trim().toUpperCase(java.util.Locale.ROOT), warehouseId);
+    }
+
+    void requireWarehouse(Slot slot, long warehouseId) {
+        if (slot.warehouseId() != warehouseId) throw ApiError.conflict("库位不属于当前仓库，请切换仓库后操作");
     }
 
     void lockActor(long id) {

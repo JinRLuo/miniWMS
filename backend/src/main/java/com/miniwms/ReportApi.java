@@ -15,18 +15,19 @@ class ReportApi {
     ReportApi(Reports reports) { this.reports = reports; }
 
     @GetMapping("/reports/summary")
-    Reports.Summary summary() { return reports.summary(); }
+    Reports.Summary summary(@RequestParam(defaultValue="1") long warehouseId) { return reports.summary(warehouseId); }
 
     @GetMapping("/reports/trend")
     List<Reports.Trend> trend(@RequestParam(required=false) LocalDate from, @RequestParam(required=false) LocalDate to,
-                              @RequestParam(defaultValue="DAY") Reports.Period period) {
-        return reports.trend(from, to, period);
+                              @RequestParam(defaultValue="DAY") Reports.Period period, @RequestParam(defaultValue="1") long warehouseId,
+                              @RequestParam(required=false) String unit) {
+        return reports.trend(from, to, period, warehouseId, unit);
     }
 
     @GetMapping("/reports/products")
     List<Reports.ProductStats> products(@RequestParam(required=false) LocalDate from,
-                                       @RequestParam(required=false) LocalDate to) {
-        return reports.products(from, to);
+                                       @RequestParam(required=false) LocalDate to, @RequestParam(defaultValue="1") long warehouseId) {
+        return reports.products(from, to, warehouseId);
     }
 
     @GetMapping("/stock/movements")

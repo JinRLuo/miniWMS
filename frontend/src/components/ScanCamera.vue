@@ -3,6 +3,7 @@ import { nextTick, onBeforeUnmount, ref } from 'vue'
 import { Camera, X } from 'lucide-vue-next'
 import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser'
 
+defineProps<{ label?: string }>()
 const emit = defineEmits<{ decoded: [value: string] }>()
 const open = ref(false)
 const video = ref<HTMLVideoElement>()
@@ -20,7 +21,7 @@ function stop() {
 async function start() {
   error.value = ''
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-    error.value = '摄像头需要 HTTPS。也可使用系统相机打开货架标签，或手动选择货架层。'
+    error.value = '摄像头需要 HTTPS。也可使用系统相机打开库位标签，或手动输入库位编号。'
     return
   }
   const current = ++attempt
@@ -41,14 +42,14 @@ async function start() {
   } catch {
     if (current !== attempt) return
     stop()
-    error.value = '无法打开摄像头，请检查浏览器权限，或手动选择货架层。'
+    error.value = '无法打开摄像头，请检查浏览器权限，或手动输入库位编号。'
   }
 }
 onBeforeUnmount(stop)
 </script>
 
 <template>
-  <button v-if="!open" type="button" class="secondary scan-button" @click="start"><Camera :size="17" /> 扫描货架码</button>
+  <button v-if="!open" type="button" class="secondary scan-button" @click="start"><Camera :size="17" /> {{ label || '扫描货架码' }}</button>
   <div v-else class="camera">
     <video ref="video" playsinline muted></video>
     <button type="button" class="icon-button camera-close" aria-label="关闭摄像头" @click="stop"><X :size="20" /></button>

@@ -7,6 +7,7 @@ import com.google.zxing.common.HybridBinarizer;
 import com.google.zxing.qrcode.QRCodeReader;
 import java.io.ByteArrayInputStream;
 import java.util.List;
+import java.math.BigDecimal;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -60,7 +61,7 @@ class WarehouseTest {
         assertThat(stock.adjust(admin.id(), Stock.Type.IN, adjust)).isEqualTo(first);
         assertThatThrownBy(() -> stock.adjust(admin.id(), Stock.Type.OUT, adjust))
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("请求编号已用于其他库存操作");
-        assertThat(db.slot(adjust.slotId()).quantity()).isEqualTo(5);
+        assertThat(db.slot(adjust.slotId()).quantity()).isEqualByComparingTo("5");
         assertThat(db.jdbc.queryForObject("SELECT COUNT(*) FROM stock_movements WHERE slot_id=?", Integer.class,
                 adjust.slotId())).isEqualTo(1);
     }
@@ -83,7 +84,7 @@ class WarehouseTest {
         } finally {
             pool.shutdownNow();
         }
-        assertThat(db.slot(slot).quantity()).isEqualTo(1);
+        assertThat(db.slot(slot).quantity()).isEqualByComparingTo("1");
     }
 
     @Test
@@ -100,11 +101,11 @@ class WarehouseTest {
         assertThat(db.slot(source.id()).productId()).isEqualTo(f.product().id());
         assertThat(db.slot(target.id()).productId()).isEqualTo(f.product().id());
         assertThat(db.slot(source.id()).quantity()).isZero();
-        assertThat(db.slot(target.id()).quantity()).isEqualTo(6);
+        assertThat(db.slot(target.id()).quantity()).isEqualByComparingTo("6");
         var stat = reports.products(null, null).stream().filter(p -> p.id() == f.product().id()).findFirst().orElseThrow();
-        assertThat(stat.inbound()).isEqualTo(6);
+        assertThat(stat.inbound()).isEqualByComparingTo("6");
         assertThat(stat.outbound()).isZero();
-        assertThat(stat.quantity()).isEqualTo(6);
+        assertThat(stat.quantity()).isEqualByComparingTo("6");
     }
 
     @Test
@@ -118,7 +119,7 @@ class WarehouseTest {
                 + target.id() + ")");
         try {
             assertThatThrownBy(() -> stock.transfer(admin.id(), move)).isInstanceOf(DataIntegrityViolationException.class);
-            assertThat(db.slot(source.id()).quantity()).isEqualTo(9);
+            assertThat(db.slot(source.id()).quantity()).isEqualByComparingTo("9");
             assertThat(db.slot(target.id()).quantity()).isZero();
             assertThat(db.slot(target.id()).productId()).isNull();
             assertThat(db.jdbc.queryForObject("SELECT COUNT(*) FROM stock_transfers WHERE target_slot_id=?",
@@ -196,6 +197,130 @@ class WarehouseTest {
         var csv = mvc.perform(asyncDispatch(export)).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
         assertThat(csv).contains(first.product().sku()).doesNotContain(second.product().sku());
+    }
+
+    @Test
+    void fishCellsSupportExactWeightAndEstimatedCountsAndRetry() {
+        var f = fishFixture();
+        var source = f.slots().get(0);
+        var target = f.slots().get(1);
+        var inbound = new Stock.Adjust(UUID.randomUUID(), source.id(), f.product().id(), new BigDecimal("5.000"), null, null);
+        var result = stock.adjust(admin.id(), Stock.Type.IN, inbound, 2);
+        assertThat(stock.adjust(admin.id(), Stock.Type.IN,
+                new Stock.Adjust(inbound.requestId(), source.id(), f.product().id(), new BigDecimal("5"), null, null), 2)).isEqualTo(result);
+        assertThat(db.slot(source.id()).getEstimatedCount()).isEqualByComparingTo("165");
+        stock.adjust(admin.id(), Stock.Type.OUT, new Stock.Adjust(UUID.randomUUID(), source.id(), f.product().id(), new BigDecimal("1.2"), null, null), 2);
+        assertThat(db.slot(source.id()).quantity()).isEqualByComparingTo("3.8");
+        assertThat(db.slot(source.id()).getEstimatedCount()).isEqualByComparingTo("125");
+        stock.transfer(admin.id(), new Stock.Transfer(UUID.randomUUID(), source.id(), target.id(), f.product().id(), new BigDecimal("0.001"), null), 2);
+        assertThat(db.slot(source.id()).quantity()).isEqualByComparingTo("3.799");
+        assertThat(db.slot(target.id()).quantity()).isEqualByComparingTo("0.001");
+        var stat = reports.products(null, null, 2).stream().filter(p -> p.id() == f.product().id()).findFirst().orElseThrow();
+        assertThat(stat.quantity()).isEqualByComparingTo("3.8");
+        assertThat(stat.outbound()).isEqualByComparingTo("1.2");
+        assertThatThrownBy(() -> stock.adjust(admin.id(), Stock.Type.OUT,
+                new Stock.Adjust(UUID.randomUUID(), source.id(), f.product().id(), new BigDecimal("3.8"), null, null), 2))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("库存不足");
+        assertThatThrownBy(() -> stock.adjust(admin.id(), Stock.Type.IN,
+                new Stock.Adjust(UUID.randomUUID(), source.id(), f.product().id(), new BigDecimal("0.0001"), null, null), 2))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("三位小数");
+    }
+
+    @Test
+    void anIntegerRequestRecordedBeforeTheUpgradeCanStillBeRetried() throws Exception {
+        var f = fixture();
+        long slot = f.slots().get(0).id();
+        UUID requestId = UUID.randomUUID();
+        // Serialize the original integer DTO to reproduce the V1 idempotency contract.
+        record LegacyAdjust(UUID requestId, Long slotId, Long productId, Integer quantity, String documentNo, String note) {}
+        String original = json.writeValueAsString(new LegacyAdjust(requestId, slot, f.product().id(), 10, null, null));
+        String fingerprint = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(("IN\n" + original).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        long request = db.insert("INSERT INTO stock_requests(operator_id,request_id,fingerprint) VALUES(?,?,?)", admin.id(), requestId.toString(), fingerprint);
+        db.jdbc.update("UPDATE inventory SET quantity=10 WHERE slot_id=?", slot);
+        db.jdbc.update("""
+                INSERT INTO stock_movements(request_id,product_id,slot_id,type,quantity,before_qty,after_qty,operator_id,document_no,created_at)
+                VALUES(?,?,?,'IN',10,0,10,?,'LEGACY-IN',?)
+                """, request, f.product().id(), slot, admin.id(), db.now().getTime());
+        var result = stock.adjust(admin.id(), Stock.Type.IN,
+                new Stock.Adjust(requestId, slot, f.product().id(), new BigDecimal("10.000"), null, null), 1);
+        assertThat(result.documentNo()).isEqualTo("LEGACY-IN");
+        assertThat(db.slot(slot).quantity()).isEqualByComparingTo("10");
+        assertThat(db.jdbc.queryForObject("SELECT COUNT(*) FROM stock_movements WHERE request_id=?", Long.class, request)).isEqualTo(1);
+        assertThatThrownBy(() -> stock.adjust(admin.id(), Stock.Type.IN,
+                new Stock.Adjust(requestId, slot, f.product().id(), new BigDecimal("10"), null, null), 2))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("不属于当前仓库");
+    }
+
+    @Test
+    void warehouseBoundariesAndOrdinaryIntegerQuantitiesAreEnforced() {
+        var general = fixture();
+        var fish = fishFixture();
+        long normalSlot = general.slots().get(0).id();
+        long fishSlot = fish.slots().get(0).id();
+        assertThatThrownBy(() -> catalog.saveSlot(normalSlot, new Catalog.SlotForm(fish.product().id(), true), admin.id(), 1))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("当前仓库的商品");
+        assertThatThrownBy(() -> stock.adjust(admin.id(), Stock.Type.IN,
+                new Stock.Adjust(UUID.randomUUID(), fishSlot, fish.product().id(), 5, null, null), 1))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("不属于当前仓库");
+        assertThatThrownBy(() -> stock.transfer(admin.id(), new Stock.Transfer(UUID.randomUUID(), fishSlot, normalSlot, fish.product().id(), 1, null), 2))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("不属于当前仓库");
+        assertThatThrownBy(() -> stock.adjust(admin.id(), Stock.Type.IN,
+                new Stock.Adjust(UUID.randomUUID(), normalSlot, general.product().id(), new BigDecimal("0.5"), null, null), 1))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("整数");
+        assertThat(db.slot(normalSlot).quantity()).isZero();
+        assertThat(db.slot(fishSlot).quantity()).isZero();
+    }
+
+    @Test
+    void warehouseReadsCodeLookupQrAndExportsStayScoped() throws Exception {
+        var f = fishFixture();
+        long slot = f.slots().get(0).id();
+        stock.adjust(admin.id(), Stock.Type.IN, new Stock.Adjust(UUID.randomUUID(), slot, f.product().id(), new BigDecimal("0.125"), "FISH-IN", null), 2);
+        var session = session("admin", ADMIN_PASSWORD);
+        mvc.perform(get("/api/products").session(session)).andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.warehouseId == 2)]").isEmpty());
+        mvc.perform(get("/api/slots/by-code/" + f.slots().get(0).code().toLowerCase()).param("warehouseId", "2").session(session))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(slot)).andExpect(jsonPath("$.quantity").value(0.125));
+        mvc.perform(get("/api/slots/by-code/" + f.slots().get(0).code()).session(session)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/stock/movements").param("warehouseId", "1").param("productId", "" + f.product().id()).session(session))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rows").isEmpty());
+        mvc.perform(get("/api/stock/movements").param("warehouseId", "2").param("productId", "" + f.product().id()).session(session))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rows[0].quantity").value(0.125)).andExpect(jsonPath("$.rows[0].unit").value("斤"));
+        String token = db.jdbc.queryForObject("SELECT qr_token FROM shelf_slots WHERE id=?", String.class, slot);
+        mvc.perform(get("/api/slots/resolve/" + token).session(session)).andExpect(status().isOk()).andExpect(jsonPath("$.warehouseId").value(2));
+        var export = mvc.perform(get("/api/stock/movements.csv").session(session).param("warehouseId", "2").param("productId", "" + f.product().id()))
+                .andExpect(request().asyncStarted()).andReturn();
+        var csv = mvc.perform(asyncDispatch(export)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(csv).contains("0.125", "斤", "33", f.product().sku());
+        assertThat(reports.products(null, null, 1)).noneMatch(p -> p.id() == f.product().id());
+        var summary = reports.summary(2);
+        assertThat(summary.units()).hasSize(1);
+        assertThat(summary.units().get(0).unit()).isEqualTo("斤");
+    }
+
+    @Test
+    void fishShelvesHaveVariableCellsAndStockedSpecificationsCannotBeRewritten() {
+        var f = fishFixture();
+        assertThat(f.slots()).hasSize(5);
+        assertThat(f.slots().stream().filter(s -> s.layerNo() == 1)).hasSize(2);
+        assertThat(f.slots().stream().filter(s -> s.layerNo() == 2)).hasSize(3);
+        stock.adjust(admin.id(), Stock.Type.IN, new Stock.Adjust(UUID.randomUUID(), f.slots().get(0).id(), f.product().id(), 1, null, null), 2);
+        assertThatThrownBy(() -> catalog.saveProduct(f.product().id(), new Catalog.ProductForm(f.product().sku(), "鱼胶", null,
+                null, null, "斤", null, null, true, null, 2L, "白花", 50), admin.id()))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("已有库存流水");
+        assertThatThrownBy(() -> catalog.saveSlot(f.slots().get(0).id(), new Catalog.SlotForm(null, true), admin.id(), 2))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("先清空");
+    }
+
+    private Fixture fishFixture() {
+        var product = catalog.saveProduct(null, new Catalog.ProductForm("FISH-" + UUID.randomUUID(), "鱼胶", null,
+                null, null, "斤", null, new BigDecimal("0.5"), true, null, 2L, "白花", 33), admin.id());
+        var shelf = catalog.saveShelf(null, new Catalog.ShelfForm("YJ" + UUID.randomUUID().toString().substring(0, 8),
+                "鱼胶测试货架", 2, 2L, List.of(2, 3)), admin.id());
+        var slots = db.slots(2).stream().filter(s -> s.shelfId() == shelf.id()).toList();
+        catalog.saveSlot(slots.get(0).id(), new Catalog.SlotForm(product.id(), true), admin.id(), 2);
+        return new Fixture(product, slots);
     }
 
     private boolean outbound(CountDownLatch start, long actor, long slot, long product) throws InterruptedException {

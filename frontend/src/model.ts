@@ -1,3 +1,5 @@
+export interface Warehouse { id: number; name: string; type: 'GENERAL' | 'FISH_MAW' }
+
 export type Role = 'ADMIN' | 'OPERATOR'
 export type Type = 'IN' | 'OUT' | 'TRANSFER_OUT' | 'TRANSFER_IN'
 
@@ -21,12 +23,17 @@ export interface Product {
   active: boolean
   note: string | null
   quantity: number
+  warehouseId: number
+  variety: string | null
+  headCount: number | null
+  estimatedCount: number | null
 }
 export interface Shelf {
   id: number
   code: string
   name: string
   layerCount: number
+  warehouseId: number
 }
 export interface Slot {
   id: number
@@ -42,15 +49,18 @@ export interface Slot {
   quantity: number
   active: boolean
   productActive: boolean
+  warehouseId: number
+  cellNo: number
+  variety: string | null
+  headCount: number | null
+  estimatedCount: number | null
 }
 export interface Summary {
   products: number
   occupiedSlots: number
   slots: number
-  quantity: number
   lowStock: number
-  todayInbound: number
-  todayOutbound: number
+  units: { unit: string; quantity: number; inbound: number; outbound: number }[]
   zone: string
   today: string
 }
@@ -67,6 +77,8 @@ export interface Movement {
   afterQty: number
   operator: string
   note: string | null
+  unit: string
+  headCount?: number | null
 }
 export interface Transfer {
   id: number
@@ -79,6 +91,8 @@ export interface Transfer {
   quantity: number
   operator: string
   note: string | null
+  unit: string
+  headCount?: number | null
 }
 export interface Page<T> { rows: T[]; more: boolean }
 export interface Trend { date: string; inbound: number; outbound: number }
@@ -98,6 +112,9 @@ export interface StockResult {
 export const typeLabel: Record<Type, string> = {
   IN: '入库', OUT: '出库', TRANSFER_IN: '移库转入', TRANSFER_OUT: '移库转出',
 }
+
+export const estimate = (quantity: number, heads: number | null | undefined) => heads == null ? null : Math.round(quantity * heads + 1e-8)
+export const decimal = (value: number) => Math.round(value * 1000) / 1000
 
 export const number = (value: number) => new Intl.NumberFormat('zh-CN').format(value)
 export const includes = (query: string, ...values: (string | null | undefined)[]) =>

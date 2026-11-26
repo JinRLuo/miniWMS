@@ -1,3 +1,7 @@
+let warehouseId = 2
+export const setWarehouse = (id: number) => { warehouseId = id }
+export const currentWarehouse = () => warehouseId
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message) }
 }
@@ -17,6 +21,7 @@ async function csrfToken() {
 }
 
 export async function api<T>(path: string, body?: unknown, method = body === undefined ? 'GET' : 'POST'): Promise<T> {
+  if (!path.startsWith('/auth/') && path !== '/warehouses') path += (path.includes('?') ? '&' : '?') + 'warehouseId=' + warehouseId
   const headers = new Headers({ Accept: 'application/json' })
   let encoded: BodyInit | undefined
   if (method !== 'GET') headers.set('X-XSRF-TOKEN', await csrfToken())

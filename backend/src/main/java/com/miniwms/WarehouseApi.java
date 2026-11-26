@@ -26,13 +26,15 @@ class WarehouseApi {
     private final Accounts accounts;
     private final Stock stock;
     private final String publicUrl;
+    private final Warehouses warehouses;
 
-    WarehouseApi(WarehouseDb db, Catalog catalog, Accounts accounts, Stock stock,
+    WarehouseApi(WarehouseDb db, Catalog catalog, Accounts accounts, Stock stock, Warehouses warehouses,
                  @Value("${wms.public-url}") String publicUrl) {
         this.db = db;
         this.catalog = catalog;
         this.accounts = accounts;
         this.stock = stock;
+        this.warehouses = warehouses;
         this.publicUrl = publicUrl;
         if (!publicUrl.isBlank()) {
             URI origin = URI.create(publicUrl);
@@ -64,42 +66,58 @@ class WarehouseApi {
         return accounts.save(id, form, user.id());
     }
 
+    @GetMapping("/warehouses")
+    List<Warehouses.Warehouse> warehouses() { return warehouses.list(); }
+
     @GetMapping("/products")
-    List<Catalog.Product> products() { return catalog.products(); }
+    List<Catalog.Product> products(@RequestParam(defaultValue="1") long warehouseId) { return catalog.products(warehouseId); }
 
     @PostMapping("/products")
-    Catalog.Product createProduct(@Valid @RequestBody Catalog.ProductForm form,
+    Catalog.Product createProduct(@RequestParam(defaultValue="1") long warehouseId, @Valid @RequestBody Catalog.ProductForm form,
                                   @AuthenticationPrincipal Accounts.Principal user) {
+        requireWarehouseForm(warehouseId, form.warehouseId());
         return catalog.saveProduct(null, form, user.id());
     }
 
     @PutMapping("/products/{id}")
-    Catalog.Product editProduct(@PathVariable long id, @Valid @RequestBody Catalog.ProductForm form,
+    Catalog.Product editProduct(@PathVariable long id, @RequestParam(defaultValue="1") long warehouseId, @Valid @RequestBody Catalog.ProductForm form,
                                 @AuthenticationPrincipal Accounts.Principal user) {
+        requireWarehouseForm(warehouseId, form.warehouseId());
         return catalog.saveProduct(id, form, user.id());
     }
 
     @GetMapping("/shelves")
-    List<Catalog.Shelf> shelves() { return catalog.shelves(); }
+    List<Catalog.Shelf> shelves(@RequestParam(defaultValue="1") long warehouseId) { return catalog.shelves(warehouseId); }
 
     @PostMapping("/shelves")
-    Catalog.Shelf createShelf(@Valid @RequestBody Catalog.ShelfForm form, @AuthenticationPrincipal Accounts.Principal user) {
+    Catalog.Shelf createShelf(@RequestParam(defaultValue="1") long warehouseId, @Valid @RequestBody Catalog.ShelfForm form, @AuthenticationPrincipal Accounts.Principal user) {
+        requireWarehouseForm(warehouseId, form.warehouseId());
         return catalog.saveShelf(null, form, user.id());
     }
 
     @PutMapping("/shelves/{id}")
-    Catalog.Shelf editShelf(@PathVariable long id, @Valid @RequestBody Catalog.ShelfForm form,
+    Catalog.Shelf editShelf(@PathVariable long id, @RequestParam(defaultValue="1") long warehouseId, @Valid @RequestBody Catalog.ShelfForm form,
                             @AuthenticationPrincipal Accounts.Principal user) {
+        requireWarehouseForm(warehouseId, form.warehouseId());
         return catalog.saveShelf(id, form, user.id());
     }
 
+    private void requireWarehouseForm(long selected, Long submitted) {
+        if (selected != Warehouses.id(submitted)) throw ApiError.conflict("资料不属于当前仓库，请重新选择");
+    }
+
     @GetMapping("/slots")
-    List<WarehouseDb.Slot> slots() { return db.slots(); }
+    List<WarehouseDb.Slot> slots(@RequestParam(defaultValue="1") long warehouseId) { warehouses.get(warehouseId); return db.slots(warehouseId); }
 
     @PutMapping("/slots/{id}")
-    WarehouseDb.Slot editSlot(@PathVariable long id, @Valid @RequestBody Catalog.SlotForm form,
+    WarehouseDb.Slot editSlot(@PathVariable long id, @RequestParam(defaultValue="1") long warehouseId, @Valid @RequestBody Catalog.SlotForm form,
                              @AuthenticationPrincipal Accounts.Principal user) {
-        return catalog.saveSlot(id, form, user.id());
+        return catalog.saveSlot(id, form, user.id(), warehouseId);
+    }
+
+    @GetMapping("/slots/by-code/{code}")
+    WarehouseDb.Slot byCode(@PathVariable String code, @RequestParam(defaultValue="1") long warehouseId) {
+        return db.byCode(code, warehouseId);
     }
 
     @GetMapping("/slots/resolve/{token}")
@@ -122,17 +140,17 @@ class WarehouseApi {
     }
 
     @PostMapping("/stock/in")
-    Stock.Result in(@Valid @RequestBody Stock.Adjust form, @AuthenticationPrincipal Accounts.Principal user) {
-        return stock.adjust(user.id(), Stock.Type.IN, form);
+    Stock.Result in(@RequestParam(defaultValue="1") long warehouseId, @Valid @RequestBody Stock.Adjust form, @AuthenticationPrincipal Accounts.Principal user) {
+        return stock.adjust(user.id(), Stock.Type.IN, form, warehouseId);
     }
 
     @PostMapping("/stock/out")
-    Stock.Result out(@Valid @RequestBody Stock.Adjust form, @AuthenticationPrincipal Accounts.Principal user) {
-        return stock.adjust(user.id(), Stock.Type.OUT, form);
+    Stock.Result out(@RequestParam(defaultValue="1") long warehouseId, @Valid @RequestBody Stock.Adjust form, @AuthenticationPrincipal Accounts.Principal user) {
+        return stock.adjust(user.id(), Stock.Type.OUT, form, warehouseId);
     }
 
     @PostMapping("/stock/transfer")
-    Stock.Result move(@Valid @RequestBody Stock.Transfer form, @AuthenticationPrincipal Accounts.Principal user) {
-        return stock.transfer(user.id(), form);
+    Stock.Result move(@RequestParam(defaultValue="1") long warehouseId, @Valid @RequestBody Stock.Transfer form, @AuthenticationPrincipal Accounts.Principal user) {
+        return stock.transfer(user.id(), form, warehouseId);
     }
 }

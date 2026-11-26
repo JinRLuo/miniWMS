@@ -1,29 +1,35 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Archive, ArrowDownLeft, ArrowRight, ArrowUpRight, ArrowLeftRight, Boxes, MapPin, ScanLine, TriangleAlert } from 'lucide-vue-next'
 import { api, errorMessage } from '../api'
-import { dateTime, number, typeLabel, type Movement, type Page, type Summary, type Trend } from '../model'
+import { dateTime, number, typeLabel, type Movement, type Page, type Summary, type Trend, type Warehouse } from '../model'
 import TrendChart from './TrendChart.vue'
 
-const props = defineProps<{ summary: Summary; mobile: boolean }>()
+const props = defineProps<{ summary: Summary; mobile: boolean; warehouse: Warehouse }>()
 defineEmits<{ navigate: [page: string]; action: [type: 'IN' | 'OUT' | 'TRANSFER'] }>()
 const trend = ref<Trend[]>([])
 const recent = ref<Movement[]>([])
 const error = ref('')
+const unit = ref(props.summary.units[0]?.unit || (props.warehouse.type === 'FISH_MAW' ? '斤' : '件'))
+const unitText = (field: 'quantity' | 'inbound' | 'outbound') => props.summary.units.map(u => number(u[field]) + ' ' + u.unit).join(' / ') || '0'
 const metrics = computed(() => [
-  { label: '当前总库存', value: props.summary.quantity, icon: Archive, color: 'green' },
-  { label: '启用商品', value: props.summary.products, icon: Boxes, color: 'blue' },
-  { label: '今日入库', value: props.summary.todayInbound, icon: ArrowDownLeft, color: 'green' },
-  { label: '今日出库', value: props.summary.todayOutbound, icon: ArrowUpRight, color: 'sand' },
+  { label: '当前总库存', value: unitText('quantity'), icon: Archive, color: 'green' },
+  { label: '启用商品', value: String(props.summary.products), icon: Boxes, color: 'blue' },
+  { label: '今日入库', value: unitText('inbound'), icon: ArrowDownLeft, color: 'green' },
+  { label: '今日出库', value: unitText('outbound'), icon: ArrowUpRight, color: 'sand' },
 ])
 onMounted(async () => {
   try {
     const [series, history] = await Promise.all([
-      api<Trend[]>('/reports/trend'), api<Page<Movement>>('/stock/movements' + (props.mobile ? '?mine=true' : '')),
+      api<Trend[]>('/reports/trend?unit=' + encodeURIComponent(unit.value)), api<Page<Movement>>('/stock/movements' + (props.mobile ? '?mine=true' : '')),
     ])
     trend.value = series
     recent.value = history.rows.slice(0, 6)
   } catch (e) { error.value = errorMessage(e) }
+})
+watch(unit, async value => {
+  try { trend.value = await api<Trend[]>('/reports/trend?unit=' + encodeURIComponent(value)) }
+  catch (e) { error.value = errorMessage(e) }
 })
 </script>
 
@@ -43,16 +49,16 @@ onMounted(async () => {
   <div class="metrics">
     <article v-for="metric in metrics" :key="metric.label" class="panel metric">
       <span :class="['metric-icon', metric.color]"><component :is="metric.icon" :size="19" /></span>
-      <span>{{ metric.label }}</span><strong>{{ number(metric.value) }}</strong>
+      <span>{{ metric.label }}</span><strong>{{ metric.value }}</strong>
     </article>
   </div>
   <div class="dashboard-grid">
     <section class="panel">
       <div class="panel-head">
-        <div><h2>出入库趋势</h2><p>最近 7 天 · 按仓库时区</p></div>
-        <div class="legend"><span>入库</span><span>出库</span></div>
+        <div><h2>出入库趋势</h2><p>最近 7 天 · {{ unit }} · 按仓库时区</p></div>
+        <select v-if="summary.units.length > 1" v-model="unit" aria-label="趋势计量单位"><option v-for="u in summary.units" :key="u.unit">{{ u.unit }}</option></select><div class="legend"><span>入库</span><span>出库</span></div>
       </div>
-      <TrendChart :data="trend" />
+      <TrendChart :data="trend" :unit="unit" />
     </section>
     <section class="panel">
       <div class="panel-head"><div><h2>快速操作</h2></div></div>
@@ -71,12 +77,12 @@ onMounted(async () => {
     </div>
     <div class="table-scroll">
       <table v-if="recent.length" role="table">
-        <thead role="rowgroup"><tr role="row"><th scope="col">操作</th><th scope="col">商品</th><th scope="col">货架层</th><th scope="col">数量</th><th scope="col">操作人</th><th scope="col">时间</th></tr></thead>
+        <thead role="rowgroup"><tr role="row"><th scope="col">操作</th><th scope="col">商品</th><th scope="col">{{ warehouse.type === 'FISH_MAW' ? '格子' : '货架层' }}</th><th scope="col">数量</th><th scope="col">操作人</th><th scope="col">时间</th></tr></thead>
         <tbody role="rowgroup"><tr v-for="row in recent" :key="row.id" role="row">
           <td role="cell"><span :class="['badge', row.type.toLowerCase()]">{{ typeLabel[row.type] }}</span></td>
           <td role="cell" data-label="商品">{{ row.product }}<small>{{ row.sku }}</small></td>
           <td role="cell" data-label="货架层" class="code">{{ row.slot }}</td>
-          <td role="cell" data-label="数量">{{ row.afterQty > row.beforeQty ? '+' : '−' }}{{ row.quantity }}</td>
+          <td role="cell" data-label="数量">{{ row.afterQty > row.beforeQty ? '+' : '−' }}{{ number(row.quantity) }} {{ row.unit }}</td>
           <td role="cell" data-label="操作人">{{ row.operator }}</td>
           <td role="cell" data-label="时间">{{ dateTime(row.createdAt, summary.zone) }}</td>
         </tr></tbody>

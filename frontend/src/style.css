@@ -281,3 +281,32 @@ dialog::backdrop { background: #102d2480; }
   .qr-print-page img { display: block; width: 100%; max-width: 190mm; aspect-ratio: 1; image-rendering: pixelated; }
   .qr-print-page strong { max-width: 100%; color: black; font: 700 48pt/1.1 ui-monospace, monospace; overflow-wrap: anywhere; text-align: center; }
 }
+
+/* Warehouse selection and fish-maw cell locations. */
+.warehouse-switch { margin: 18px 16px 8px; display: grid; gap: 8px; }
+.warehouse-switch button { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid #dbe5df; border-radius: 10px; background: transparent; text-align: left; color: #496158; }
+.warehouse-switch button span { display: grid; gap: 4px; font-weight: 650; }
+.warehouse-switch button small { font-size: 11px; font-weight: 400; color: #6b8176; }
+.warehouse-switch button.selected { border-color: #168065; background: #e7f3ed; color: #126b54; }
+.mobile-warehouse-switch { display: grid; grid-template-columns: 1fr 1fr; padding: 4px; gap: 4px; background: #e7ede9; border-radius: 12px; margin-bottom: 18px; }
+.mobile-warehouse-switch button { padding: 11px 8px; border: 0; background: transparent; border-radius: 9px; color: #536a60; }
+.mobile-warehouse-switch button.selected { background: white; color: #14765c; font-weight: 700; box-shadow: 0 2px 6px #173b2610; }
+.code-entry { display: flex; align-items: end; gap: 8px; }
+.code-entry > input, .code-entry > label { flex: 1; min-width: 0; }
+.fish-stock-info { padding: 16px; display: grid; gap: 7px; border-radius: 10px; background: #edf6f0; border: 1px solid #cde2d4; }
+.fish-stock-info strong { color: #15684f; }
+.fish-stock-info small { color: #63786c; }
+@media (max-width: 760px) {
+  .metric strong { overflow-wrap: anywhere; }
+}
+.warehouse-switch button:not(.selected) { color: #d4e6dc; border-color: #426354; background: #193d30; }
+.warehouse-switch button:not(.selected) small { color: #adc5b6; }
+
+.shelf-management > .toolbar { padding: 12px 14px; gap: 8px; }
+.shelf-management > .toolbar .searchbox { min-width: 220px; flex: 1; max-width: 330px; }
+.shelf-management > .toolbar > select { max-width: 180px; }
+@media (max-width: 760px) {
+  .shelf-management > .toolbar .searchbox { min-width: 100%; max-width: none; }
+  .shelf-management > .toolbar > select { flex: 1; max-width: none; }
+  .shelf-management > .toolbar .toolbar-end { width: 100%; margin-left: 0; justify-content: flex-end; }
+}
