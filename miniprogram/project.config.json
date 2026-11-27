@@ -1,5 +1,5 @@
 {
-  "appid": "wxfb5ff972a8d1d07a",
+  "appid": "wx501ebbfbda5f494e",
   "projectname": "Mini WMS 鱼胶仓库",
   "compileType": "miniprogram",
   "miniprogramRoot": "app/",
@@ -32,5 +32,6 @@
     "include": []
   },
   "simulatorPluginLibVersion": {},
-  "editorSetting": {}
+  "editorSetting": {},
+  "isGameTourist": false
 }

@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/auth/wechat")
 class WeChatAuthApi {
-    record Login(@NotBlank @Size(max=512) String loginCode, @NotBlank @Size(max=512) String phoneCode) {}
+    record Login(@NotBlank @Size(max=512) String loginCode) {}
     private final WeChatClient client;
     private final WeChatAccounts accounts;
     private final SecurityContextRepository contexts;
@@ -33,7 +33,7 @@ class WeChatAuthApi {
 
     @PostMapping("/login")
     Accounts.View login(@Valid @RequestBody Login form, HttpServletRequest request, HttpServletResponse response) {
-        var user = accounts.login(client.verify(form.loginCode(), form.phoneCode()));
+        var user = accounts.login(client.verify(form.loginCode()));
         var auth = UsernamePasswordAuthenticationToken.authenticated(user, null, user.getAuthorities());
         sessions.onAuthentication(auth, request, response);
         var context = SecurityContextHolder.createEmptyContext();

@@ -27,8 +27,8 @@ App({
         this.user = await api('/auth/me')
         if (!this.user.wechatBound) {
           clearSession()
-          this.expire('请使用微信手机号登录')
-          throw new Error('请使用微信手机号登录')
+          this.expire('请使用微信登录')
+          throw new Error('请使用微信登录')
         }
         if (this.user.approved !== false) await this.loadSettings()
         else { this.warehouse = null; setWarehouse(null) }
@@ -45,8 +45,7 @@ App({
     this.preferences = preferences
     setWarehouse(warehouse.id)
   },
-  async login(phoneCode) {
-    if (!phoneCode) throw new Error('请先授权微信手机号')
+  async login() {
     const loginCode = await new Promise((resolve, reject) => wx.login({
       success(result) { result.code ? resolve(result.code) : reject(new Error('未获得微信登录凭证，请重试')) },
       fail() { reject(new Error('微信登录失败，请稍后重试')) },
@@ -54,7 +53,7 @@ App({
     clearSession()
     this.user = null; this.warehouse = null
     this._ready = null
-    this.user = await api('/auth/wechat/login', { loginCode, phoneCode })
+    this.user = await api('/auth/wechat/login', { loginCode })
     if (this.user.approved !== false) await this.ready()
     return this.user
   },

@@ -18,7 +18,7 @@ const search = ref('')
 const pendingOnly = ref(false)
 const pendingCount = computed(() => users.value.filter(user => user.active && !user.approved).length)
 const rows = computed(() => users.value.filter(user => (!pendingOnly.value || (user.active && !user.approved)) &&
-  [user.username, user.displayName, user.phone || ''].some(value => value.toLowerCase().includes(search.value.trim().toLowerCase())))
+  [user.username, user.displayName, '#' + user.id].some(value => value.toLowerCase().includes(search.value.trim().toLowerCase())))
   .sort((a, b) => Number(a.approved) - Number(b.approved) || b.id - a.id))
 
 async function load() {
@@ -52,15 +52,15 @@ onMounted(load)
 <template>
   <section class="panel">
     <div class="toolbar"><h2>仓库账号</h2><button class="primary toolbar-end" @click="open()"><Plus :size="17" /> 新增账号</button></div>
-    <div class="filter-form"><label class="field">查找用户<input v-model="search" placeholder="姓名、手机号或账号"></label>
+    <div class="filter-form"><label class="field">查找用户<input v-model="search" placeholder="姓名、账号编号或账号"></label>
       <label class="check"><input v-model="pendingOnly" type="checkbox"> 仅待授权（{{ pendingCount }}）</label>
-      <p class="muted">微信新用户完成手机号授权后会出现在这里，授予仓库权限后才可访问业务数据。</p>
+      <p class="muted">微信新用户登录后会出现在这里。按用户提供的账号编号查找，核对身份并授予仓库权限后才可访问业务数据。</p>
     </div>
     <p v-if="error" class="error panel-message" role="alert">{{ error }}</p>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>显示名称 / 账号</th><th>手机号</th><th>登录方式</th><th>角色</th><th>状态</th><th>操作</th></tr></thead>
-        <tbody><tr v-for="user in rows" :key="user.id"><td>{{ user.displayName }}<small class="code">{{ user.username }}</small></td><td>{{ user.phone || '—' }}</td>
+        <thead><tr><th>显示名称 / 账号</th><th>账号编号</th><th>登录方式</th><th>角色</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody><tr v-for="user in rows" :key="user.id"><td>{{ user.displayName }}<small class="code">{{ user.username }}</small></td><td>#{{ user.id }}</td>
           <td>{{ user.wechatBound ? '微信登录' : '账号密码' }}</td>
           <td>{{ !user.approved ? '待授权' : user.role === 'ADMIN' ? '管理员' : '仓库操作员' }}</td>
           <td><span :class="['badge', user.active && user.approved ? 'in' : 'neutral']">{{ !user.active ? '已停用' : user.approved ? '已授权' : '待授权' }}</span></td>
@@ -76,7 +76,7 @@ onMounted(load)
     </div>
     <form class="form-stack dialog-form" @submit.prevent="save">
       <fieldset :disabled="busy">
-        <label v-if="selected?.wechatBound" class="field">微信授权手机号<input :value="selected.phone || ''" readonly><small>手机号由微信校验。授权仅对当前微信账号生效。</small></label>
+        <label v-if="selected?.wechatBound" class="field">微信账号编号<input :value="'#' + selected.id" readonly><small>用户待授权页显示相同编号。核对身份后授权，仅对当前微信账号生效。</small></label>
         <label class="field">账号<input v-model.trim="form.username" :readonly="selected?.wechatBound" required pattern="[A-Za-z0-9._\-]{2,64}" maxlength="64" autocomplete="off"></label>
         <label class="field">显示名称<input v-model.trim="form.displayName" required maxlength="100"></label>
         <label v-if="!selected?.wechatBound" class="field">{{ editId ? '重置密码（选填）' : '初始密码' }}<input v-model="form.password" type="password" :required="!editId" minlength="12" maxlength="72" autocomplete="new-password"></label>

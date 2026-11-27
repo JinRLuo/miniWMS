@@ -1,8 +1,8 @@
 <view class="page secondary-page">
   <view class="eyebrow">MY WORKSPACE</view><view class="heading">个人设置</view>
-  <view wx:if="{{user}}" class="profile"><view class="avatar">{{user.displayName[0]}}</view><view><view class="section-title">{{user.displayName}}</view><view class="muted">{{phone || '微信账号'}} · {{user.role === 'ADMIN' ? '管理员' : '仓库操作员'}}</view></view></view>
+  <view wx:if="{{user}}" class="profile"><view class="avatar">{{user.displayName[0]}}</view><view><view class="section-title">{{user.displayName}}</view><view class="muted">账号 #{{user.id}} · {{user.role === 'ADMIN' ? '管理员' : '仓库操作员'}}</view></view></view>
   <view class="error" wx:if="{{error}}">{{error}}</view>
   <view class="card"><view class="section-title mb">重量单位</view><view class="two-col"><button class="choice {{unit === 'JIN' ? 'selected' : ''}}" data-unit="JIN" bindtap="unit" disabled="{{busy}}"><view>斤</view><text>默认单位</text></button><button class="choice {{unit === 'GRAM' ? 'selected' : ''}}" data-unit="GRAM" bindtap="unit" disabled="{{busy}}"><view>克</view><text>1 斤 = 500 克</text></button></view><view class="muted unit-note">设置与电脑端同步，仅对当前账号生效。克最小支持 0.5 克；头数始终表示每斤个数。</view><view wx:if="{{saved}}" class="success">已保存，其他设备重新加载后同步</view><button class="primary" bindtap="save" disabled="{{busy}}">保存单位设置</button></view>
-  <view class="card"><view class="section-title">账号认证</view><view class="muted">通过微信身份和手机号登录，仓库访问权限由管理员分配。</view></view>
+  <view class="card"><view class="section-title">账号认证</view><view class="muted">通过微信身份登录，仓库访问权限由管理员分配。</view></view>
   <button class="danger" bindtap="logout" disabled="{{busy}}">退出登录</button><view class="version">Mini WMS · 微信小程序 1.0</view>
 </view>

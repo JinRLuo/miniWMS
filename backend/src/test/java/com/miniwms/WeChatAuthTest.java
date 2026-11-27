@@ -35,13 +35,13 @@ class WeChatAuthTest {
     @Test
     void registrationCreatesOnlyPendingAccessDespiteSpoofedIdentityOrRoleAndRotatesSession() throws Exception {
         var identity = identity();
-        when(client.verify("login-code", "phone-code")).thenReturn(identity);
+        when(client.verify("login-code")).thenReturn(identity);
         var old = new MockHttpSession();
         String oldId = old.getId();
         var result = mvc.perform(post("/api/auth/wechat/login").session(old).with(csrf()).contentType(APPLICATION_JSON)
                 .content("{\"loginCode\":\"login-code\",\"phoneCode\":\"phone-code\",\"approved\":true,\"role\":\"ADMIN\",\"phone\":\"fake\",\"openId\":\"admin\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.approved").value(false))
-                .andExpect(jsonPath("$.role").value("OPERATOR")).andExpect(jsonPath("$.phone").value(identity.phone()))
+                .andExpect(jsonPath("$.role").value("OPERATOR")).andExpect(jsonPath("$.phone").doesNotExist())
                 .andExpect(jsonPath("$.wechatBound").value(true)).andExpect(jsonPath("$.openId").doesNotExist())
                 .andExpect(jsonPath("$.passwordHash").doesNotExist()).andExpect(jsonPath("$.session_key").doesNotExist()).andReturn();
         var session = (MockHttpSession) result.getRequest().getSession(false);
@@ -85,23 +85,28 @@ class WeChatAuthTest {
         save(user, true, false, Accounts.Role.OPERATOR, admin);
         mvc.perform(get("/api/auth/me").servletPath("/api/auth/me").session(session)).andExpect(status().isUnauthorized());
         assertThat(session.isInvalid()).isTrue();
-        when(client.verify(anyString(), anyString())).thenReturn(new WeChatClient.Identity("test-app", openId(user.id()), user.phone()));
+        when(client.verify(anyString())).thenReturn(new WeChatClient.Identity("test-app", openId(user.id())));
         mvc.perform(post("/api/auth/wechat/login").with(csrf()).contentType(APPLICATION_JSON)
-                .content("{\"loginCode\":\"login\",\"phoneCode\":\"phone\"}")) .andExpect(status().isForbidden());
+                .content("{\"loginCode\":\"login\"}")) .andExpect(status().isForbidden());
     }
 
     @Test
-    void returningUserRetainsApprovalAndIdentitiesAreNeverMergedByPhone() throws Exception {
+    void returningUserRetainsApprovalAndLegacyDataWhileAppAndCaseKeepIdentitiesSeparate() throws Exception {
         var identity = identity();
         var first = wechat.login(identity);
+        assertThat(first.phone()).isNull();
+        assertThat(first.displayName()).isEqualTo("微信用户" + first.id());
+        // A pre-upgrade WeChat account keeps its optional historical data.
+        db.jdbc.update("UPDATE users SET phone=? WHERE id=?", "13900001111", first.id());
         long admin = accounts.loadUserByUsername("admin").id();
         accounts.save(first.id(), new Accounts.Form(first.username(), "已授权微信用户", Accounts.Role.OPERATOR, true, null, true), admin);
-        var again = wechat.login(new WeChatClient.Identity(identity.appId(), identity.openId(), "13900001111"));
+        var again = wechat.login(new WeChatClient.Identity(identity.appId(), identity.openId()));
         assertThat(again.id()).isEqualTo(first.id()); assertThat(again.approved()).isTrue();
         assertThat(again.phone()).isEqualTo("13900001111");
-        var other = wechat.login(new WeChatClient.Identity(identity.appId(), "other-" + UUID.randomUUID(), again.phone()));
+        assertThat(again.displayName()).isEqualTo("已授权微信用户");
+        var other = wechat.login(new WeChatClient.Identity("another-app", identity.openId()));
         assertThat(other.id()).isNotEqualTo(first.id()); assertThat(other.approved()).isFalse();
-        var caseDifferent = wechat.login(new WeChatClient.Identity(identity.appId(), identity.openId().toUpperCase(java.util.Locale.ROOT), identity.phone()));
+        var caseDifferent = wechat.login(new WeChatClient.Identity(identity.appId(), identity.openId().toUpperCase(java.util.Locale.ROOT)));
         assertThat(caseDifferent.id()).isNotEqualTo(first.id());
         assertThatThrownBy(() -> accounts.loadUserByUsername(first.username()))
                 .isInstanceOf(org.springframework.security.core.userdetails.UsernameNotFoundException.class);
@@ -113,7 +118,7 @@ class WeChatAuthTest {
 
     @Test
     void concurrentFirstLoginsHaveOneAccountAndNoOrphanUsers() throws Exception {
-        var identity = new WeChatClient.Identity("test-app", "concurrent-" + UUID.randomUUID(), "13800002222");
+        var identity = new WeChatClient.Identity("test-app", "concurrent-" + UUID.randomUUID());
         int before = db.jdbc.queryForObject("SELECT COUNT(*) FROM users", Integer.class);
         var barrier = new CyclicBarrier(2);
         var pool = Executors.newFixedThreadPool(2);
@@ -126,29 +131,29 @@ class WeChatAuthTest {
     }
 
     @Test
-    void bothCodesAndCsrfAreRequiredAndInvalidWechatCredentialsCreateNoUser() throws Exception {
+    void loginCodeAndCsrfAreRequiredAndInvalidWechatCredentialsCreateNoUser() throws Exception {
         int before = db.jdbc.queryForObject("SELECT COUNT(*) FROM users", Integer.class);
-        mvc.perform(post("/api/auth/wechat/login").with(csrf()).contentType(APPLICATION_JSON).content("{\"loginCode\":\"only-login\"}"))
+        mvc.perform(post("/api/auth/wechat/login").with(csrf()).contentType(APPLICATION_JSON).content("{\"loginCode\":\"\"}"))
                 .andExpect(status().isBadRequest());
         mvc.perform(post("/api/auth/wechat/login").contentType(APPLICATION_JSON)
-                .content("{\"loginCode\":\"login\",\"phoneCode\":\"phone\"}")) .andExpect(status().isForbidden());
+                .content("{\"loginCode\":\"login\"}")) .andExpect(status().isForbidden());
         verifyNoInteractions(client);
-        when(client.verify(anyString(), anyString())).thenThrow(ApiError.bad("手机号授权校验失败"));
+        when(client.verify(anyString())).thenThrow(ApiError.bad("微信登录凭证已失效"));
         mvc.perform(post("/api/auth/wechat/login").with(csrf()).contentType(APPLICATION_JSON)
-                .content("{\"loginCode\":\"login\",\"phoneCode\":\"phone\"}")) .andExpect(status().isBadRequest());
+                .content("{\"loginCode\":\"login\"}")) .andExpect(status().isBadRequest());
         assertThat(db.jdbc.queryForObject("SELECT COUNT(*) FROM users", Integer.class)).isEqualTo(before);
     }
 
     private WeChatClient.Identity identity() {
-        return new WeChatClient.Identity("test-app", "openid-" + UUID.randomUUID(), "13800001111");
+        return new WeChatClient.Identity("test-app", "openid-" + UUID.randomUUID());
     }
     private String openId(long id) {
         return new String(db.jdbc.queryForObject("SELECT open_id FROM wechat_accounts WHERE user_id=?", byte[].class, id), StandardCharsets.UTF_8);
     }
     private MockHttpSession login(Accounts.Principal user) throws Exception {
-        when(client.verify(anyString(), anyString())).thenReturn(new WeChatClient.Identity("test-app", openId(user.id()), user.phone()));
+        when(client.verify(anyString())).thenReturn(new WeChatClient.Identity("test-app", openId(user.id())));
         return (MockHttpSession) mvc.perform(post("/api/auth/wechat/login").with(csrf()).contentType(APPLICATION_JSON)
-                .content("{\"loginCode\":\"login\",\"phoneCode\":\"phone\"}")) .andExpect(status().isOk()).andReturn().getRequest().getSession(false);
+                .content("{\"loginCode\":\"login\"}")) .andExpect(status().isOk()).andReturn().getRequest().getSession(false);
     }
     private MockHttpSession administrator() throws Exception {
         return (MockHttpSession) mvc.perform(post("/api/auth/login").with(csrf()).param("username", "admin")

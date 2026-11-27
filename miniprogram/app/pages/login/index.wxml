@@ -4,9 +4,9 @@
   <view class="card">
     <view class="section-title mb">微信登录仓库</view>
     <view class="notice" wx:if="{{notice}}">{{notice}}</view>
-    <view class="login-description">授权微信手机号以识别仓库账号。首次登录后，需由管理员授予权限才能使用。</view>
+    <view class="login-description">使用微信身份登录。首次登录后，需由管理员授予仓库权限才能使用。</view>
     <view class="error" wx:if="{{error}}">{{error}}</view>
-    <button class="primary" open-type="getPhoneNumber" bindgetphonenumber="login" loading="{{busy}}" disabled="{{busy}}">授权手机号并微信登录</button>
+    <button class="primary" bindtap="login" loading="{{busy}}" disabled="{{busy}}">微信登录</button>
   </view>
   <view class="footer">微信身份认证 · 管理员授权后使用</view>
 </view>

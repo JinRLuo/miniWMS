@@ -1,11 +1,10 @@
 const { api } = require('../../utils/api')
 const { guard } = require('../../utils/page')
-const { maskPhone } = require('../../utils/model')
 Page({
-  data: { loading: true, error: '', busy: false, user: null, phone: '', unit: 'JIN', saved: false },
+  data: { loading: true, error: '', busy: false, user: null, unit: 'JIN', saved: false },
   async onShow() {
     const app = await guard(this)
-    if (app) this.setData({ loading: false, user: app.user, phone: maskPhone(app.user.phone), unit: app.preferences.weightUnit })
+    if (app) this.setData({ loading: false, user: app.user, unit: app.preferences.weightUnit })
   },
   unit(event) { if (!this.data.busy) this.setData({ unit: event.currentTarget.dataset.unit, saved: false }) },
   input(event) { if (!this.data.busy) this.setData({ [event.currentTarget.dataset.field]: event.detail.value }) },

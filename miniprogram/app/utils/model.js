@@ -1,6 +1,5 @@
 const labels = { IN: '入库', OUT: '出库', TRANSFER_IN: '移库转入', TRANSFER_OUT: '移库转出' }
 const unitLabel = preference => preference === 'GRAM' ? '克' : '斤'
-const maskPhone = value => !value ? '' : String(value).replace(/(\d{3})\d+(\d{4})$/, '$1****$2')
 const decimal = value => Math.round(Number(value) * 1000) / 1000
 function weight(value, preference, unit = '斤') {
   return String(Number((Number(value) * (preference === 'GRAM' && unit === '斤' ? 500 : 1)).toFixed(3)))
@@ -74,4 +73,4 @@ function passwordError(current, next, confirm) {
   if (current === next) return '新密码不能与当前密码相同'
   return ''
 }
-module.exports = { unitLabel, maskPhone, decimal, weight, quantityInput, requestId, scanToken, entryToken, dateTime, movement, slotView, passwordError }
+module.exports = { unitLabel, decimal, weight, quantityInput, requestId, scanToken, entryToken, dateTime, movement, slotView, passwordError }

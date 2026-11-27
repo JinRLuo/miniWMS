@@ -103,7 +103,7 @@ test('an old backend rejecting the WeChat route reports a service upgrade instea
   const { api, onExpired } = require('../app/utils/api')
   let expired = 0
   onExpired(() => expired++)
-  await assert.rejects(api('/auth/wechat/login', { loginCode: 'login-code', phoneCode: 'phone-code' }),
+  await assert.rejects(api('/auth/wechat/login', { loginCode: 'login-code' }),
     error => error.status === 401 && error.message.includes('更新后端服务'))
   assert.equal(expired, 0)
 })

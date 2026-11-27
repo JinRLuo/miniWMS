@@ -41,13 +41,12 @@ class WeChatAccounts {
                 (r, n) -> r.getLong(1), identity.appId().getBytes(StandardCharsets.UTF_8), identity.openId().getBytes(StandardCharsets.UTF_8));
         long id;
         if (ids.isEmpty()) {
-            String phone = identity.phone();
-            String suffix = phone.substring(Math.max(0, phone.length() - 4));
             id = db.insert("""
-                    INSERT INTO users(username,display_name,password_hash,role,active,approved,phone,login_provider)
-                    VALUES(?,?,?,'OPERATOR',TRUE,FALSE,?,'WECHAT')
-                    """, "wx_" + UUID.randomUUID().toString().replace("-", ""), "微信用户" + suffix,
-                    encoder.encode(UUID.randomUUID().toString()), phone);
+                    INSERT INTO users(username,display_name,password_hash,role,active,approved,login_provider)
+                    VALUES(?,?,?,'OPERATOR',TRUE,FALSE,'WECHAT')
+                    """, "wx_" + UUID.randomUUID().toString().replace("-", ""), "微信用户",
+                    encoder.encode(UUID.randomUUID().toString()));
+            db.jdbc.update("UPDATE users SET display_name=? WHERE id=?", "微信用户" + id, id);
             db.jdbc.update("INSERT INTO wechat_accounts(user_id,app_id,open_id) VALUES(?,?,?)", id,
                     identity.appId().getBytes(StandardCharsets.UTF_8), identity.openId().getBytes(StandardCharsets.UTF_8));
             db.audit(id, "WECHAT_REGISTER", id);
@@ -55,7 +54,6 @@ class WeChatAccounts {
             id = ids.get(0);
             db.one("SELECT id FROM users WHERE id=? FOR UPDATE", (r, n) -> r.getLong(1), "账号不存在", id);
             if (!accounts.find(id).active()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "账号已停用，请联系管理员");
-            db.jdbc.update("UPDATE users SET phone=? WHERE id=?", identity.phone(), id);
         }
         db.audit(id, "WECHAT_LOGIN", id);
         return accounts.find(id);
