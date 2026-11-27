@@ -2,6 +2,7 @@ name: miniwms
 services:
   api:
     image: ${WMS_JAVA_IMAGE:?Set WMS_JAVA_IMAGE}
+    pull_policy: never
     entrypoint: ["java"]
     command:
       - "-Xms32m"
@@ -19,7 +20,12 @@ services:
       - "${WMS_RELEASE_JAR:-./current/miniwms.jar}:/app/miniwms.jar:ro"
     ports:
       - "127.0.0.1:18089:8080"
-    networks: [mysql, cache]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [app, database, cache]
     mem_limit: 384m
     cpus: "1.0"
     pids_limit: 96
@@ -37,7 +43,8 @@ services:
         max-size: 10m
         max-file: "3"
   redis:
-    image: redis:8.2.11-alpine@sha256:da23c2478319ceb4903857d77a2fd7aa5137d9e9d4c8165dafbacedac6403e95
+    image: ${WMS_REDIS_IMAGE:-miniwms-runtime/redis:8.2.11}
+    pull_policy: never
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     volumes:
       - redis-data:/data
@@ -61,13 +68,47 @@ services:
       options:
         max-size: 5m
         max-file: "3"
+  mysql:
+    image: ${WMS_MYSQL_IMAGE:-miniwms-runtime/mysql:8.0.45}
+    pull_policy: never
+    env_file: .mysql.env
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --innodb-buffer-pool-size=128M
+      - --innodb-log-buffer-size=8M
+      - --max-connections=32
+      - --table-open-cache=256
+      - --table-definition-cache=400
+      - --performance-schema=OFF
+      - --skip-log-bin
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks: [database]
+    mem_limit: 512m
+    cpus: "1.0"
+    pids_limit: 128
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping --protocol=tcp --host=127.0.0.1 --user=root --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
 
 networks:
-  mysql:
-    external: true
-    name: muse-pro_default
+  app:
+  database:
+    internal: true
   cache:
     internal: true
 
 volumes:
   redis-data:
+  mysql-data:

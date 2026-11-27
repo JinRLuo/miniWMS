@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Mini WMS database backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Asia/Shanghai
+RandomizedDelaySec=10m
+Persistent=true
+Unit=miniwms-backup.service
+
+[Install]
+WantedBy=timers.target

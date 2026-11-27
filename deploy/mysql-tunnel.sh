@@ -2,9 +2,15 @@
 # Run locally and keep this process open while the application uses MySQL.
 set -euo pipefail
 
-host=${1:-zoomzoom}
+host=${1:-aliapp}
 port=${2:-13306}
-ip=$(ssh -T -o BatchMode=yes -o ConnectTimeout=12 "$host"   'docker inspect --format "{{(index .NetworkSettings.Networks \"muse-pro_default\").IPAddress}}" musepro-mysql')
+container=${3:-miniwms-mysql-1}
+if [[ ! "$container" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
+  printf '%s\n' 'Invalid MySQL container name.' >&2
+  exit 2
+fi
+ip=$(ssh -T -o BatchMode=yes -o ConnectTimeout=12 "$host" \
+  "docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' '$container'")
 if [[ ! "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   printf '%s\n' 'Could not resolve the existing MySQL container bridge address.' >&2
   exit 1

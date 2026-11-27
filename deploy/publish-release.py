@@ -18,7 +18,7 @@ import time
 
 ROOT = Path("/opt/miniwms")
 RELEASES = ROOT / "releases"
-SITE = "wms.zoomzoom.team"
+SITE = os.environ.get("WMS_DEPLOY_SITE", "wms.piuiq.com")
 MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
 
 

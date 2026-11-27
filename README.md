@@ -4,7 +4,7 @@
 
 ## 本地运行并连接云端 MySQL
 
-需要 Java 17+、Maven 和 Node.js 20+。以下命令从仓库根目录运行。连接服务器需要可用的 `ssh zoomzoom` 配置。
+需要 Java 17+、Maven 和 Node.js 20+。以下命令从仓库根目录运行。连接服务器需要可用的 `ssh aliapp` 配置。
 
 在第一个终端打开隧道并保持运行。
 
@@ -30,7 +30,7 @@ npm run dev
 
 打开 [PC 管理后台](http://localhost:5173/admin) 或 [手机工作台](http://localhost:5173/m)。
 
-服务器复用 `zoomzoom` 上的 `musepro-mysql` 容器。数据库名为 `miniwms`，应用账号为 `miniwms_app`，权限限定在该库。隧道每次启动都会查询容器的当前地址，默认监听本机 `127.0.0.1:13306`。`.env.cloud` 权限为 0600，已被 Git 忽略。数据库地址和端口可通过 `WMS_DB_URL` 调整。
+生产数据库位于 `aliapp` 上的独立 `miniwms-mysql-1` 容器。数据库名为 `miniwms`，应用账号为 `miniwms_app`，权限限定在该库。隧道每次启动都会查询容器的当前地址，默认监听本机 `127.0.0.1:13306`；连接的是生产数据，需要隔离开发数据时使用下方 H2 演示模式。`.env.cloud` 权限为 0600，已被 Git 忽略。数据库地址和端口可通过 `WMS_DB_URL` 调整。隧道脚本也接受 SSH 别名、本机端口、MySQL 容器名三个位置参数。
 
 ## 使用本地演示数据
 
@@ -47,7 +47,13 @@ WMS_DEMO=true mvn spring-boot:run
 
 将 `WMS_PUBLIC_URL` 设置为手机可访问的 HTTPS 站点根地址，再生成或打印货架层二维码。站内扫码使用设备摄像头。也可使用手机系统相机扫描标签，登录后直接打开对应货架层。
 
-`compose.yaml` 提供应用部署配置。API 加入已有的 MySQL Docker 网络，Web 容器只发布服务器回环端口 `18089`。在目标服务器上设置数据库密码、管理员初始密码及 HTTPS 站点地址，使用 `docker compose up --build -d` 启动，再将 HTTPS 反向代理指向 `127.0.0.1:18089`。如果 API 和数据库在同一 Docker 网络，使用默认容器连接地址即可。MySQL 连接地址和网络名可通过 `WMS_DB_URL`、`WMS_DB_NETWORK` 覆盖。
+线上入口为 [wms.piuiq.com](https://wms.piuiq.com)。`alifrp`（`8.134.203.247`）上的 Nginx 将 TCP 80、443 经内网转发到 `aliapp`（`172.24.182.10`）。应用机终止 HTTPS，提供静态页面，再将 API 请求转发到 `127.0.0.1:18089`。应用机公网 `8.163.39.133` 是备用入口，可将同一域名的 A 记录切换到该地址；两条链路共用应用、数据库、会话和证书。配置与切换命令见 [Nginx 部署说明](deploy/nginx/README.md)。
+
+生产使用 [运行配置](deploy/compose.runtime.yaml)，包含 API、MySQL 8.0.45 和 Redis；数据库和 Redis 不发布主机端口。运行镜像由服务器 `.env` 指定并固定为已校验的本地镜像，Compose 不自动拉取。MySQL 凭据保存在 `/opt/miniwms/.mysql.env`，应用连接参数在 `/opt/miniwms/.app.env`，文件权限均为 0600。目录和数据卷需持久保存。
+
+根目录 `compose.yaml` 用于从源码构建整套服务。设置 `WMS_DB_PASSWORD`、`WMS_DB_ROOT_PASSWORD`、`WMS_REDIS_PASSWORD`、`WMS_ADMIN_PASSWORD` 和 `WMS_PUBLIC_URL` 后执行 `docker compose up --build -d`；Web 容器只发布回环端口 `18089`，外层 HTTPS 反向代理连接该端口。它与线上直接运行发布 JAR 的运行配置是两种部署方式。
+
+原域名 `wms.zoomzoom.team` 保留页面和二维码跳转，路径及查询参数原样带到新域名；旧 API 返回 503，旧应用已停止、旧库 WMS 账号已锁定。用户需在新域名重新登录，账号、密码和业务数据保持一致。新站接收写入后，恢复旧站前必须先反向迁移最新数据库，不能直接启动旧应用使用旧数据。
 
 ## Redis 会话与缓存
 
@@ -57,7 +63,7 @@ WMS_DEMO=true mvn spring-boot:run
 
 服务器使用独立 Redis 8.2.11 容器、内网 Docker 网络和随机密码，不发布主机端口；开启 AOF 持久化，数据保存在 `miniwms_redis-data` Docker 卷。Redis 内存上限 128 MiB，容器上限 256 MiB，使用 `noeviction` 避免自动淘汰登录会话。运行配置保存在 `/opt/miniwms/compose.runtime.yaml`，Redis 配置位于 `/opt/miniwms/redis/redis.conf`，应用连接参数位于仅 root 可读的 `/opt/miniwms/.app.env`。配置和密码请勿提交到 Git。
 
-初次安装或同步运行配置时，把 [安装脚本](deploy/install-redis.py) 和 [运行模板](deploy/compose.runtime.yaml) 放到服务器同一目录，以 root 执行 `python3 install-redis.py`。脚本先备份原配置，再生成密码、更新 Redis 连接参数并仅启动 Redis；正在运行的 API 不会被重启，新配置在下次应用发布时生效。重复执行会复用现有密码和持久化卷。备份保存在 `/opt/miniwms/backups/before-redis-*`。
+线上 Redis 已完成配置。[Redis 安装脚本](deploy/install-redis.py) 用于已有 `/opt/miniwms` 环境的 Redis 配置更新，会备份原配置并仅启动 Redis；它不负责初始化 MySQL、安装运行镜像或恢复数据库，完整部署需先准备上述独立数据库及运行环境。备份保存在 `/opt/miniwms/backups/before-redis-*`。
 
 本地开发默认使用内存会话，不依赖 Redis。需要验证生产模式时，设置 `SPRING_PROFILES_ACTIVE=redis` 以及 `WMS_REDIS_HOST`、`WMS_REDIS_PORT`、`WMS_REDIS_PASSWORD`，再启动后端。可选参数 `WMS_REDIS_DATABASE`、`WMS_REDIS_SESSION_NAMESPACE`、`WMS_REDIS_CACHE_PREFIX` 用于隔离环境。使用根目录 `compose.yaml` 部署时，还须设置 `WMS_REDIS_PASSWORD`，Compose 会自动启用 Redis Profile 并启动独立 Redis 容器。
 
@@ -65,11 +71,19 @@ WMS_DEMO=true mvn spring-boot:run
 
 推送或合并到 `main` 后，GitHub Actions 会运行后端测试、构建前端，然后把带校验和的发布包传到线上服务器。也可在 Actions 的 **Deploy Mini WMS** 页面从 `main` 手动触发。
 
-仓库变量 `MINIWMS_DEPLOY_HOST` 设为服务器公网 IP `43.156.245.251`，`MINIWMS_DEPLOY_KNOWN_HOSTS` 保存该 IP 对应的 SSH 主机公钥。Actions 直接通过公网 IP 连接服务器。仓库 Secret `MINIWMS_DEPLOY_KEY` 保存专用部署私钥。服务器上的 `miniwms-deploy` 用户通过 SSH 强制命令运行 `/usr/local/sbin/miniwms-deploy`，该文件由 [发布脚本](deploy/publish-release.py) 安装。生产 Compose 配置允许通过 `WMS_RELEASE_JAR` 指定后端 JAR。数据库连接配置存放在服务器的 `/opt/miniwms/.app.env`。
+仓库变量 `MINIWMS_DEPLOY_HOST` 设为应用机公网 IP `8.163.39.133`，`MINIWMS_DEPLOY_KNOWN_HOSTS` 保存该 IP 对应的 SSH 主机公钥。Actions 直接连接应用机，发布流量不经过入口机。仓库 Secret `MINIWMS_DEPLOY_KEY` 保存专用部署私钥。服务器上的 `miniwms-deploy` 用户通过 SSH 强制命令运行 `/usr/local/sbin/miniwms-deploy`，包装命令以 Python 3.11 运行 [发布脚本](deploy/publish-release.py)。健康检查域名默认是 `wms.piuiq.com`，可由包装命令设置 `WMS_DEPLOY_SITE`。生产 Compose 配置允许通过 `WMS_RELEASE_JAR` 指定后端 JAR。数据库连接配置存放在服务器的 `/opt/miniwms/.app.env`。
 
 发布串行执行。后端代码有变更时会更新 API 容器。发布后校验 PC 页面、扫码页面、静态资源和 API，健康检查失败会恢复上一应用版本。Flyway 在 API 启动时执行数据库迁移，新增迁移需要兼容上一应用版本。
 
 Actions 会通过自部署 Bark 服务 `https://bark.zoomzoom.team` 发送带 GitHub 图标的部署结果通知：部署和健康检查成功时发送「Mini WMS 部署成功」，构建、发布或健康检查失败时发送「Mini WMS 部署失败」。内容包含仓库、分支和提交号，点击可打开本次 Actions 运行页面。请先在 Bark App 中添加该服务器，再将该服务器对应的设备 Key 保存为仓库 Secret `BARK_DEVICE_KEY`（Settings → Secrets and variables → Actions → New repository secret），只填写 Key，不包含服务器地址。因提交过期而跳过部署时不发送通知；未配置 Key 时会显示警告并跳过通知，通知发送失败不影响部署结果。
+
+## 数据备份
+
+应用机的 `miniwms-backup.timer` 每天上海时间 03:30 后十分钟内执行 [备份脚本](deploy/backup-mysql.sh)。它在 `/opt/miniwms/backups/mysql` 保存一致性 SQL 备份、SHA256 和运行配置，保留七天每日备份及四周周日备份。配置归档包含密码，仅 root 可读。
+
+每次备份通过专用 SSH 密钥传到旧机的 `/opt/miniwms/backups/aliapp-daily`，异机保留 31 天。接收账号强制运行 [接收脚本](deploy/receive-backup.py)，只允许上传两份有大小限制的备份文件，没有交互式 shell 或端口转发权限；数据库 SQL 不会在旧机自动执行。
+
+可用 `systemctl start miniwms-backup.service` 手动备份，使用 `systemctl status miniwms-backup.service` 和 `journalctl -u miniwms-backup.service` 检查结果。正式迁移已验证生成的备份可恢复，并对全部业务表的数据、结构、自增序号及库存汇总进行一致性核对。恢复操作应在维护窗口或独立数据库中进行。
 
 ## 仓库与鱼胶库存
 

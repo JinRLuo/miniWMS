@@ -2,21 +2,24 @@ services:
   api:
     build: ./backend
     environment:
-      WMS_DB_URL: ${WMS_DB_URL:-jdbc:mysql://musepro-mysql:3306/miniwms}
+      WMS_DB_URL: ${WMS_DB_URL:-jdbc:mysql://mysql:3306/miniwms}
       WMS_DB_USER: ${WMS_DB_USER:-miniwms_app}
       WMS_DB_PASSWORD: ${WMS_DB_PASSWORD:?Set WMS_DB_PASSWORD}
       WMS_ADMIN_PASSWORD: ${WMS_ADMIN_PASSWORD:?Set WMS_ADMIN_PASSWORD}
       WMS_PUBLIC_URL: ${WMS_PUBLIC_URL:?Set WMS_PUBLIC_URL to the HTTPS application origin}
       WMS_SECURE_COOKIE: "true"
+      WMS_BIND: "0.0.0.0"
       SPRING_PROFILES_ACTIVE: redis
       WMS_REDIS_HOST: redis
       WMS_REDIS_PASSWORD: ${WMS_REDIS_PASSWORD:?Set WMS_REDIS_PASSWORD}
     depends_on:
+      mysql:
+        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
       - app
-      - mysql
+      - database
       - cache
     restart: unless-stopped
   redis:
@@ -43,14 +46,38 @@ services:
     networks:
       - app
     restart: unless-stopped
+  mysql:
+    image: mysql:8.0.45
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_DATABASE: miniwms
+      MYSQL_USER: ${WMS_DB_USER:-miniwms_app}
+      MYSQL_PASSWORD: ${WMS_DB_PASSWORD:?Set WMS_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${WMS_DB_ROOT_PASSWORD:?Set WMS_DB_ROOT_PASSWORD}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --innodb-buffer-pool-size=128M
+      - --max-connections=32
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks: [database]
+    mem_limit: 512m
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping --protocol=tcp --host=127.0.0.1 --user=root --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
 
 networks:
   app:
   cache:
     internal: true
-  mysql:
-    external: true
-    name: ${WMS_DB_NETWORK:-muse-pro_default}
+  database:
+    internal: true
 
 volumes:
   redis-data:
+  mysql-data:

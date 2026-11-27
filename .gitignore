@@ -4,5 +4,7 @@ frontend/dist/
 data/
 .env
 .DS_Store
+__pycache__/
+*.pyc
 
 .env.*
