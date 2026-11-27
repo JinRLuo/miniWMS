@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: miniwms-production
@@ -71,10 +72,28 @@ jobs:
           timestamp=$(git log -1 --format=%cI -- backend)
           mvn -B -ntp -f backend/pom.xml -Dproject.build.outputTimestamp="$timestamp" verify
 
+      - name: Test deployment receiver
+        run: python3 -m unittest discover -s deploy -p 'test_*.py'
+
       - name: Build frontend
         run: |
           npm --prefix frontend ci
           npm --prefix frontend run build
+
+      - name: Package production release
+        run: |
+          mkdir -p "$RUNNER_TEMP/miniwms-release"
+          python3 deploy/package-release.py "$RUNNER_TEMP/miniwms-release/release.tar.gz"
+
+      - name: Upload release artifact
+        id: artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: miniwms-release-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/miniwms-release/release.tar.gz
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
 
       - name: Publish production release
         id: deploy
@@ -84,6 +103,7 @@ jobs:
           MINIWMS_DEPLOY_HOST: ${{ vars.MINIWMS_DEPLOY_HOST }}
           MINIWMS_DEPLOY_KEY: ${{ secrets.MINIWMS_DEPLOY_KEY }}
           MINIWMS_DEPLOY_KNOWN_HOSTS: ${{ vars.MINIWMS_DEPLOY_KNOWN_HOSTS }}
+          RELEASE_ARTIFACT_ID: ${{ steps.artifact.outputs.artifact-id }}
         run: |
           tip=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
           if [[ "$tip" != "$GITHUB_SHA" ]]; then
@@ -98,13 +118,13 @@ jobs:
           umask 077
           work=$(mktemp -d "$RUNNER_TEMP/miniwms.XXXXXXXX")
           trap 'rm -rf -- "$work"' EXIT
-          python3 deploy/package-release.py "$work/release.tar.gz"
+          python3 deploy/request-release.py "$RUNNER_TEMP/miniwms-release/release.tar.gz" "$RELEASE_ARTIFACT_ID" > "$work/request.json"
           printf '%s\n' "$MINIWMS_DEPLOY_KEY" > "$work/id_ed25519"
           printf '%s\n' "$MINIWMS_DEPLOY_KNOWN_HOSTS" > "$work/known_hosts"
           ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             -o ConnectTimeout=15 -o ServerAliveInterval=15 \
             -o "UserKnownHostsFile=$work/known_hosts" -i "$work/id_ed25519" \
-            "miniwms-deploy@$MINIWMS_DEPLOY_HOST" < "$work/release.tar.gz"
+            "miniwms-deploy@$MINIWMS_DEPLOY_HOST" < "$work/request.json"
           printf 'deployed=true\n' >> "$GITHUB_OUTPUT"
 
       - name: Notify deployment result via Bark

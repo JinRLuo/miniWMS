@@ -69,7 +69,9 @@ WMS_DEMO=true mvn spring-boot:run
 
 ## GitHub Actions 自动发布
 
-推送或合并到 `main` 后，GitHub Actions 会运行后端测试、构建前端，然后把带校验和的发布包传到线上服务器。也可在 Actions 的 **Deploy Mini WMS** 页面从 `main` 手动触发。
+推送或合并到 `main` 后，GitHub Actions 会运行后端及部署接收器测试、构建前端，并上传保留一天的发布制品。受限 SSH 只传递小型发布请求，应用机通过 HTTPS 并行下载制品，避免跨云 SSH 大文件传输缓慢；也可在 Actions 的 **Deploy Mini WMS** 页面从 `main` 手动触发。
+
+请求携带发布包大小、SHA256、提交号和 GitHub 生成的短时下载地址。应用机只允许 HTTPS 的 GitHub Azure Blob 制品存储地址，不跟随重定向，并限制请求、下载及解压大小；校验发布包和各文件哈希后才切换版本。GitHub Token 只留在 Actions，应用机只收到单份制品的短时下载地址。下载机制使用 [GitHub 官方制品 API](https://docs.github.com/en/rest/actions/artifacts#download-an-artifact)。原压缩包经 SSH 直接输入的方式仍兼容。
 
 仓库变量 `MINIWMS_DEPLOY_HOST` 设为应用机公网 IP `8.163.39.133`，`MINIWMS_DEPLOY_KNOWN_HOSTS` 保存该 IP 对应的 SSH 主机公钥。Actions 直接连接应用机，发布流量不经过入口机。仓库 Secret `MINIWMS_DEPLOY_KEY` 保存专用部署私钥。服务器上的 `miniwms-deploy` 用户通过 SSH 强制命令运行 `/usr/local/sbin/miniwms-deploy`，包装命令以 Python 3.11 运行 [发布脚本](deploy/publish-release.py)。健康检查域名默认是 `wms.piuiq.com`，可由包装命令设置 `WMS_DEPLOY_SITE`。生产 Compose 配置允许通过 `WMS_RELEASE_JAR` 指定后端 JAR。数据库连接配置存放在服务器的 `/opt/miniwms/.app.env`。
 

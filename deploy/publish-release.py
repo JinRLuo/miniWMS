@@ -2,6 +2,7 @@
 """Receive one release from the restricted production SSH key."""
 
 import fcntl
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import os
@@ -14,12 +15,115 @@ import sys
 import tarfile
 import tempfile
 import time
+import urllib.parse
+import urllib.request
+import zipfile
 
 
 ROOT = Path("/opt/miniwms")
 RELEASES = ROOT / "releases"
 SITE = os.environ.get("WMS_DEPLOY_SITE", "wms.piuiq.com")
 MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
+MAX_REQUEST_BYTES = 64 * 1024
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, newurl):
+        return None
+
+
+def read_download_request(source):
+    payload = source.read(MAX_REQUEST_BYTES + 1)
+    if len(payload) > MAX_REQUEST_BYTES:
+        raise ValueError("Release download request is too large")
+    request = json.loads(payload)
+    if not isinstance(request, dict) or request.get("version") != 1:
+        raise ValueError("Unsupported release download request")
+    if not re.fullmatch(r"[0-9a-f]{40}", str(request.get("revision", ""))):
+        raise ValueError("Invalid requested Git revision")
+    if not re.fullmatch(r"[0-9a-f]{64}", str(request.get("sha256", ""))):
+        raise ValueError("Invalid release archive checksum")
+    size = request.get("bytes")
+    if type(size) is not int or not 0 < size <= MAX_ARCHIVE_BYTES:
+        raise ValueError("Invalid release archive size")
+    if not isinstance(request.get("url"), str):
+        raise ValueError("Invalid artifact storage URL")
+    url = urllib.parse.urlsplit(request["url"])
+    if (url.scheme != "https" or url.username or url.password or url.fragment
+            or url.port not in (None, 443)
+            or not (url.hostname or "").endswith(".blob.core.windows.net")):
+        raise ValueError("Only HTTPS GitHub artifact storage URLs are allowed")
+    return request
+
+
+def download_artifact(request, target):
+    """Download bounded ranges concurrently; never forward the GitHub token."""
+    opener = urllib.request.build_opener(NoRedirect())
+    with opener.open(urllib.request.Request(request["url"], method="HEAD"), timeout=20) as response:
+        total = int(response.headers["Content-Length"])
+    if not 0 < total <= MAX_ARCHIVE_BYTES + 1024 * 1024:
+        raise ValueError("Artifact download is too large")
+    print(f"Downloading release artifact over HTTPS ({total} bytes)", flush=True)
+    workers = min(8, max(1, (total + 1024 * 1024 - 1) // (1024 * 1024)))
+    deadline = time.monotonic() + 300
+
+    def part(index):
+        start = total * index // workers
+        end = total * (index + 1) // workers - 1
+        path = target.with_name(f"part-{index}")
+        query = urllib.request.Request(request["url"], headers={"Range": f"bytes={start}-{end}"})
+        with urllib.request.build_opener(NoRedirect()).open(query, timeout=20) as response:
+            if (response.status != 206
+                    or response.headers.get("Content-Range") != f"bytes {start}-{end}/{total}"):
+                raise ValueError("Artifact storage did not honor the download range")
+            received = 0
+            with path.open("xb") as output:
+                while True:
+                    chunk = response.read(128 * 1024)
+                    if not chunk:
+                        break
+                    received += len(chunk)
+                    if received > end - start + 1 or time.monotonic() > deadline:
+                        raise ValueError("Artifact range exceeded its size or time limit")
+                    output.write(chunk)
+            if received != end - start + 1:
+                raise ValueError("Artifact range was incomplete")
+        return path
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        parts = list(pool.map(part, range(workers)))
+    with target.open("xb") as output:
+        for path in parts:
+            with path.open("rb") as source:
+                shutil.copyfileobj(source, output)
+
+
+def receive_artifact(artifact, request, stage):
+    with zipfile.ZipFile(artifact) as archive:
+        entries = archive.infolist()
+        if (len(entries) != 1 or entries[0].filename != "release.tar.gz"
+                or entries[0].file_size != request["bytes"]):
+            raise ValueError("Unexpected files or sizes in release artifact")
+        target = artifact.with_name("release.tar.gz")
+        with archive.open(entries[0]) as source, target.open("xb") as output:
+            shutil.copyfileobj(source, output)
+    if digest(target) != request["sha256"]:
+        raise ValueError("Downloaded release archive checksum verification failed")
+    with target.open("rb") as source:
+        manifest = receive(source, stage)
+    if manifest["revision"] != request["revision"]:
+        raise ValueError("Downloaded release revision differs from the request")
+    return manifest
+
+
+def receive_release(source, stage):
+    if not source.peek(1).startswith(b"{"):
+        return receive(source, stage)
+    request = read_download_request(source)
+    with tempfile.TemporaryDirectory(prefix=".download-", dir=RELEASES) as temporary:
+        artifact = Path(temporary) / "artifact.zip"
+        download_artifact(request, artifact)
+        return receive_artifact(artifact, request, stage)
 
 
 def digest(path):
@@ -46,7 +150,7 @@ def receive(source, stage):
         for member in archive:
             total += member.size
             name = member.name
-            if (not member.isfile() or not valid_member(name) or name in names
+            if (not member.isfile() or member.size < 0 or not valid_member(name) or name in names
                     or total > MAX_ARCHIVE_BYTES or len(names) >= 4096):
                 raise ValueError("Unexpected file or size in release archive")
             if name == "release.json" and member.size > 1024 * 1024:
@@ -161,7 +265,7 @@ def main():
         with tempfile.TemporaryDirectory(prefix=".incoming-", dir=RELEASES) as temporary:
             stage = Path(temporary) / "release"
             stage.mkdir()
-            manifest = receive(sys.stdin.buffer, stage)
+            manifest = receive_release(sys.stdin.buffer, stage)
             release = RELEASES / manifest["revision"]
             if release.exists():
                 published = metadata(release)
@@ -202,6 +306,7 @@ if __name__ == "__main__":
     signal.signal(signal.SIGTERM, interrupted)
     try:
         main()
-    except (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError, tarfile.TarError) as error:
+    except (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError,
+            tarfile.TarError, zipfile.BadZipFile) as error:
         print(f"Mini WMS deploy failed: {error}", file=sys.stderr)
         sys.exit(1)
