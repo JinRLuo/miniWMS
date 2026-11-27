@@ -108,6 +108,15 @@ class MySqlMigrationTest {
             }
             assertThatThrownBy(() -> s.execute("UPDATE user_preferences SET weight_unit='KG' WHERE user_id=1"))
                     .isInstanceOf(java.sql.SQLException.class);
+            try (var r=s.executeQuery("SELECT approved,login_provider,phone FROM users WHERE id=1")) {
+                assertThat(r.next()).isTrue(); assertThat(r.getBoolean(1)).isTrue();
+                assertThat(r.getString(2)).isEqualTo("PASSWORD"); assertThat(r.getString(3)).isNull();
+            }
+            s.execute("INSERT INTO users(id,username,display_name,password_hash,role,approved,login_provider) VALUES(2,'wx-a','微信A','hash','OPERATOR',FALSE,'WECHAT'),(3,'wx-b','微信B','hash','OPERATOR',FALSE,'WECHAT')");
+            s.execute("INSERT INTO wechat_accounts(user_id,app_id,open_id) VALUES(2,'test-app','OpenId'),(3,'test-app','openid')");
+            try (var r=s.executeQuery("SELECT COUNT(*) FROM wechat_accounts")) {
+                assertThat(r.next()).isTrue(); assertThat(r.getInt(1)).isEqualTo(2);
+            }
         }
     }
 }

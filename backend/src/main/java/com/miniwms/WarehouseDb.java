@@ -93,9 +93,10 @@ class WarehouseDb {
     }
 
     void lockActor(long id) {
-        boolean active = one("SELECT active FROM users WHERE id=? FOR UPDATE",
-                (r, n) -> r.getBoolean(1), "账号不存在", id);
-        if (!active) throw ApiError.conflict("账号已停用");
+        var state = one("SELECT active,approved FROM users WHERE id=? FOR UPDATE",
+                (r, n) -> new boolean[]{r.getBoolean(1), r.getBoolean(2)}, "账号不存在", id);
+        if (!state[0]) throw ApiError.conflict("账号已停用");
+        if (!state[1]) throw ApiError.conflict("账号尚未授权，请联系管理员");
     }
 
     void lockSlot(long id) {

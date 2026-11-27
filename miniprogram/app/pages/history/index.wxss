@@ -1,0 +1,7 @@
+.filters { padding-top: 24rpx; }
+.filter-heading { min-height: 64rpx; }
+.filter-toggle .ui-icon { width: 28rpx; height: 28rpx; flex-basis: 28rpx; }
+.pagination { display: flex; align-items: center; gap: 20rpx; margin-top: 30rpx; }
+.page .pagination button:not([size='mini']) { flex: 1 1 0%; width: 0; min-width: 0; padding: 20rpx 12rpx; font-size: 25rpx; white-space: nowrap; }
+.page-number { flex: 0 0 auto; min-width: 140rpx; text-align: center; white-space: nowrap; line-height: 1.5; }
+.two-col .picker { font-size: 24rpx; padding: 22rpx 16rpx; }

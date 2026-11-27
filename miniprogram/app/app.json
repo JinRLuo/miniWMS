@@ -1,0 +1,34 @@
+{
+  "pages": [
+    "pages/home/index",
+    "pages/operations/index",
+    "pages/inventory/index",
+    "pages/history/index",
+    "pages/settings/index",
+    "pages/pending/index",
+    "pages/login/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "Mini WMS",
+    "navigationBarBackgroundColor": "#f5f7f4",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f5f7f4",
+    "backgroundTextStyle": "dark",
+    "enablePullDownRefresh": true
+  },
+  "tabBar": {
+    "custom": true,
+    "color": "#7b8580",
+    "selectedColor": "#245b48",
+    "backgroundColor": "#ffffff",
+    "list": [
+      { "pagePath": "pages/home/index", "text": "工作台" },
+      { "pagePath": "pages/operations/index", "text": "出入库" },
+      { "pagePath": "pages/inventory/index", "text": "库存" },
+      { "pagePath": "pages/history/index", "text": "记录" }
+    ]
+  },
+  "usingComponents": { "movement-list": "/components/movement-list/index" },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

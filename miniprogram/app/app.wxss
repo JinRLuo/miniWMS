@@ -1,0 +1,58 @@
+page {
+  background: #f5f7f4;
+  color: #203c32;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  font-size: 28rpx;
+  line-height: 1.6;
+}
+view, text, input, textarea, button, picker, image { box-sizing: border-box; }
+button { font-size: 28rpx; line-height: 1.5; border-radius: 20rpx; font-weight: 600; padding: 23rpx 28rpx; }
+/* style:v2 supplies button:not([size='mini']) { width:184px; margin:auto }.
+   Reset it explicitly, including in grid/flex children and compact actions. */
+.page button:not([size='mini']), .login button:not([size='mini']) {
+  width: 100%; min-width: 0; max-width: 100%; margin: 0; box-sizing: border-box;
+}
+button::after { border: none; }
+button[disabled] { opacity: .45; }
+.page { padding: 32rpx 32rpx calc(156rpx + env(safe-area-inset-bottom)); }
+.page.secondary-page { padding-bottom: calc(48rpx + env(safe-area-inset-bottom)); }
+.heading { font-size: 42rpx; font-weight: 700; letter-spacing: -1rpx; line-height: 1.3; margin-bottom: 10rpx; overflow-wrap: break-word; }
+.eyebrow { font-size: 22rpx; letter-spacing: 3rpx; color: #7b8c82; margin-bottom: 12rpx; }
+.subtitle, .muted { color: #7b8881; font-size: 24rpx; }
+.section-title { font-size: 30rpx; font-weight: 600; min-width: 0; overflow-wrap: break-word; }
+.section-head, .row { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; min-width: 0; }
+.section-head { margin: 36rpx 0 20rpx; }
+.card { min-width: 0; max-width: 100%; background: #fff; border: 1rpx solid #e5ebe6; border-radius: 28rpx; padding: 28rpx; margin-bottom: 22rpx; }
+.page button.primary, .login button.primary { background: #245b48; color: #fff; }
+.page button.secondary, .login button.secondary { background: #eaf1eb; color: #245b48; }
+.page button.danger { background: #fff1ed; color: #b14b37; }
+.page button.plain:not([size='mini']), .login button.plain:not([size='mini']) {
+  flex: 0 0 auto; width: auto; white-space: nowrap; background: transparent; color: #245b48; padding: 12rpx 0; font-size: 24rpx;
+}
+.button-content { display: flex; align-items: center; justify-content: center; gap: 12rpx; min-width: 0; }
+.ui-icon { display: inline-block; width: 36rpx; height: 36rpx; flex: 0 0 36rpx; vertical-align: middle; }
+.field { min-width: 0; margin-bottom: 26rpx; }
+.field-label { display: block; font-size: 25rpx; font-weight: 600; margin-bottom: 12rpx; }
+input, .picker, textarea { width: 100%; min-width: 0; border: 1rpx solid #dfe7e0; background: #fafcf9; border-radius: 16rpx; padding: 22rpx 24rpx; color: #203c32; font-size: 28rpx; }
+input { height: 92rpx; line-height: normal; }
+textarea { height: 160rpx; }
+.picker { min-height: 90rpx; display: flex; align-items: center; justify-content: space-between; gap: 12rpx; overflow-wrap: anywhere; }
+.picker::after { content: ''; width: 12rpx; height: 12rpx; border-right: 2rpx solid #829087; border-bottom: 2rpx solid #829087; transform: rotate(45deg); flex: 0 0 12rpx; margin: -6rpx 4rpx 0 8rpx; }
+.picker.disabled { opacity: .5; }
+.error, .notice, .success { padding: 22rpx 24rpx; border-radius: 18rpx; margin: 20rpx 0; font-size: 25rpx; overflow-wrap: anywhere; }
+.error { background: #fff0eb; color: #ad4938; }
+.notice { background: #f4eedc; color: #8c7134; }
+.success { background: #e9f3e9; color: #245b48; }
+.empty { padding: 60rpx 24rpx; text-align: center; color: #8a958d; font-size: 26rpx; }
+.tabs { display: flex; background: #e8eee8; border-radius: 20rpx; padding: 7rpx; margin: 28rpx 0; gap: 6rpx; }
+.page .tabs button:not([size='mini']) { flex: 1 1 0%; width: 0; padding: 18rpx 12rpx; color: #7b8a7f; background: transparent; font-size: 26rpx; border-radius: 15rpx; white-space: nowrap; }
+.page .tabs button.selected { background: #fff; color: #245b48; box-shadow: 0 2rpx 10rpx #203c3210; }
+.tag { display: inline-block; flex: 0 0 auto; padding: 4rpx 14rpx; background: #e9f3e9; color: #245b48; border-radius: 10rpx; font-size: 22rpx; white-space: nowrap; }
+.tag.out { background: #f8eee0; color: #a2733f; }
+.mono { font-family: Menlo, Consolas, monospace; font-size: 23rpx; word-break: break-all; }
+.actions { display: flex; gap: 16rpx; margin-top: 22rpx; min-width: 0; }
+.page .actions button:not([size='mini']) { flex: 1 1 0%; width: 0; white-space: nowrap; }
+.two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18rpx; min-width: 0; }
+.two-col > view, .two-col > button { min-width: 0; max-width: 100%; }
+.divider { height: 1rpx; background: #edf1ec; margin: 24rpx 0; }
+.mb { margin-bottom: 24rpx; }

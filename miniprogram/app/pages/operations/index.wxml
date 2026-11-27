@@ -1,0 +1,21 @@
+<view class="page">
+  <view class="eyebrow">STOCK OPERATIONS</view><view class="heading">每一笔，都有迹可循</view><view class="subtitle">扫描格子二维码，或输入完整编号定位</view>
+  <view class="tabs"><button class="{{mode === 'IN' ? 'selected' : ''}}" data-mode="IN" bindtap="mode" disabled="{{busy || pending || locating}}"><view class="button-content"><image class="ui-icon" src="/assets/icons/inbound-{{mode === 'IN' ? 'active' : 'muted'}}.png" mode="aspectFit" /><text>入库</text></view></button><button class="{{mode === 'OUT' ? 'selected' : ''}}" data-mode="OUT" bindtap="mode" disabled="{{busy || pending || locating}}"><view class="button-content"><image class="ui-icon" src="/assets/icons/outbound-{{mode === 'OUT' ? 'active' : 'muted'}}.png" mode="aspectFit" /><text>出库</text></view></button></view>
+  <view class="error" wx:if="{{error}}">{{error}}</view>
+  <view wx:if="{{pending}}" class="notice"><view class="section-title">待确认的{{pending.mode === 'IN' ? '入库' : '出库'}}操作</view><view>{{pending.slot.code}} · {{pending.slot.productName}}</view><view>请求已保存，可安全重试。确认完成前不能新建操作。</view><button class="primary" bindtap="send" loading="{{busy}}" disabled="{{busy}}">重试原请求，确认结果</button></view>
+  <view class="success" wx:if="{{result}}"><view class="section-title">{{mode === 'IN' ? '入库' : '出库'}}成功</view><view>操作后库存 {{result.amount}}</view><view class="mono" selectable>{{result.documentNo}}</view></view>
+  <view wx:if="{{loading}}" class="empty">正在加载可用格子…</view>
+  <view class="card" wx:else>
+    <button class="scan-button" bindtap="scan" loading="{{locating}}" disabled="{{busy || pending || locating}}"><view class="button-content"><image class="ui-icon" src="/assets/icons/scan-active.png" mode="aspectFit" /><text>扫描格子二维码</text></view></button>
+    <view class="code-entry"><input value="{{query}}" data-field="query" bindinput="input" bindconfirm="locate" placeholder="格子编号 / 品种 / 头数" disabled="{{busy || pending || locating}}" confirm-type="search" /><button class="secondary" bindtap="locate" disabled="{{busy || pending || locating}}">定位</button></view>
+    <picker range="{{options}}" range-key="label" bindchange="pick" disabled="{{busy || pending || locating || !options.length}}"><view class="picker">{{selected ? selected.code : '选择已绑定规格的格子'}}</view></picker>
+    <view wx:if="{{!options.length}}" class="muted mb">{{query ? '没有匹配的格子，可输入完整编号定位。' : '暂无已绑定规格的格子，请先在电脑端绑定。'}}</view>
+    <view wx:if="{{selected}}" class="stock-detail"><view class="row"><text class="section-title">{{selected.productName || '未绑定规格'}}</text><text class="tag">{{selected.headCount || '—'}}头</text></view><view class="stock-amount">{{selected.amount}}</view><view class="muted">当前库存 · 约 {{selected.estimate}} 个</view><view class="muted" wx:if="{{!selected.active || !selected.productActive}}">{{!selected.active ? '该格子已停用' : '该规格已停用，仅可出库'}}</view></view>
+    <view class="field"><text class="field-label">{{mode === 'IN' ? '入库' : '出库'}}重量（{{unit}}）</text><input class="weight-input" type="digit" value="{{quantity}}" data-field="quantity" bindinput="input" placeholder="请输入实际重量" disabled="{{busy || pending || locating}}" maxlength="20" /><view class="muted">最小精度 {{unit === '克' ? '0.5 克' : '0.001 斤'}} · 头数始终表示每斤个数</view></view>
+    <view wx:if="{{validation}}" class="error">{{validation}}</view>
+    <view wx:if="{{preview}}" class="preview row"><text>{{mode === 'IN' ? '入库' : '出库'}}后库存</text><text>{{preview}}</text></view>
+    <view class="field"><text class="field-label">备注（选填）</text><textarea value="{{note}}" data-field="note" bindinput="input" placeholder="填写本次操作说明" maxlength="500" disabled="{{busy || pending || locating}}" /></view>
+    <button class="primary" bindtap="submit" loading="{{busy}}" disabled="{{busy || pending || locating || !selected || !quantity || validation}}">确认{{mode === 'IN' ? '入库' : '出库'}}</button>
+    <view class="muted footnote">单据号由系统自动生成，库存以服务器最新数量为准。</view>
+  </view>
+</view>

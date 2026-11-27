@@ -1,0 +1,8 @@
+<view class="movement" wx:for="{{rows}}" wx:key="id">
+  <view class="line"><text class="label {{item.inbound ? '' : 'out'}}">{{item.label}}</text><text class="amount {{item.inbound ? '' : 'out-text'}}">{{item.amount}}</text></view>
+  <view class="product">{{item.product}}</view>
+  <view class="line"><text class="code">{{item.slot}}</text><text class="balance">{{item.balance}}</text></view>
+  <view class="meta">{{item.operator}} · {{item.time}}</view>
+  <view class="document" selectable>{{item.documentNo}}</view>
+  <view wx:if="{{item.note}}" class="note">{{item.note}}</view>
+</view>

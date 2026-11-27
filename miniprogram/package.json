@@ -1,0 +1,10 @@
+{
+  "name": "miniwms-miniprogram",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "node scripts/check.js",
+    "smoke": "WMS_MINIPROGRAM_SMOKE=1 node --test tests/smoke.test.js"
+  }
+}

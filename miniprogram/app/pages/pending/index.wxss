@@ -1,0 +1,7 @@
+.pending-page { padding-top: 70rpx; text-align: center; }
+.status-icon { display: flex; align-items: center; justify-content: center; width: 132rpx; height: 132rpx; border-radius: 36rpx; background: #e7efe3; margin: 0 auto 36rpx; }
+.status-icon image { width: 76rpx; height: 76rpx; }
+.pending-page .card { margin-top: 40rpx; padding: 32rpx; }
+.phone { font-size: 36rpx; font-weight: 600; margin-top: 12rpx; }
+.notice { text-align: left; }
+.page .card button.plain:not([size='mini']) { display: block; margin: 20rpx auto 0; padding: 12rpx 24rpx; }

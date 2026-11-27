@@ -29,3 +29,6 @@ wms:
   public-url: ${WMS_PUBLIC_URL:}
   admin-password: ${WMS_ADMIN_PASSWORD:}
   demo: ${WMS_DEMO:false}
+  wechat:
+    app-id: ${WMS_WECHAT_APP_ID:}
+    app-secret: ${WMS_WECHAT_APP_SECRET:}

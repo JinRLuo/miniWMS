@@ -1,0 +1,6 @@
+<view class="bar" role="tablist">
+  <view wx:for="{{tabs}}" wx:key="key" class="tab {{selected === item.key ? 'active' : ''}}" data-key="{{item.key}}" bindtap="switchTab" hover-class="tab-pressed" role="tab" aria-label="{{item.text}}" aria-selected="{{selected === item.key}}">
+    <view class="icon-wrap"><image class="icon" src="/assets/icons/{{item.icon}}-{{selected === item.key ? 'active' : 'muted'}}.png" mode="aspectFit" aria-hidden="true" /></view>
+    <text class="label">{{item.text}}</text>
+  </view>
+</view>

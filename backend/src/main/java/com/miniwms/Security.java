@@ -19,6 +19,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Configuration
@@ -29,21 +31,37 @@ class Security {
     }
 
     @Bean
-    SecurityFilterChain securityChain(HttpSecurity http, Accounts accounts) throws Exception {
+    CookieCsrfTokenRepository csrfRepository() { return CookieCsrfTokenRepository.withHttpOnlyFalse(); }
+
+    @Bean
+    SecurityContextRepository securityContextRepository() { return new HttpSessionSecurityContextRepository(); }
+
+    @Bean
+    SecurityFilterChain securityChain(HttpSecurity http, Accounts accounts, CookieCsrfTokenRepository csrfRepository,
+                                      SecurityContextRepository contextRepository) throws Exception {
         return http
-                .csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .securityContext(context -> context.securityContextRepository(contextRepository))
+                .csrf(csrf -> csrf.csrfTokenRepository(csrfRepository)
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/csrf", "/api/auth/login", "/error").permitAll()
+                        .requestMatchers("/api/auth/csrf", "/api/auth/login", "/api/auth/wechat/login", "/error").permitAll()
+                        .requestMatchers("/api/auth/me").authenticated()
                         .requestMatchers("/api/admin/**", "/api/products", "/api/products/**", "/api/shelves", "/api/shelves/**", "/api/reports/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/slots", "/api/slots/*/qrcode").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/slots/*").hasRole("ADMIN")
-                        .requestMatchers("/api/**").authenticated()
+                        .requestMatchers("/api/**").hasAnyRole("ADMIN", "OPERATOR")
                         .anyRequest().permitAll())
                 .requestCache(cache -> cache.disable())
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint((req, res, ex) -> reply(res, 401, "请先登录"))
-                        .accessDeniedHandler((req, res, ex) -> reply(res, 403, "权限不足或登录凭据已过期")))
+                        .accessDeniedHandler((req, res, ex) -> {
+                            var auth = SecurityContextHolder.getContext().getAuthentication();
+                            if (auth != null && auth.getPrincipal() instanceof Accounts.Principal user && !user.approved()) {
+                                res.setStatus(403); res.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                                res.setContentType("application/json");
+                                res.getWriter().write("{\"code\":\"ACCOUNT_PENDING\",\"message\":\"账号尚未授权，请联系管理员\"}");
+                            } else reply(res, 403, "权限不足或登录凭据已过期");
+                        }))
                 .formLogin(login -> login.loginProcessingUrl("/api/auth/login")
                         .successHandler((req, res, auth) -> res.setStatus(204))
                         .failureHandler((req, res, ex) -> reply(res, 401, "账号或密码错误")))
@@ -59,7 +77,8 @@ class Security {
                                 && req.getServletPath().startsWith("/api/")) {
                             var current = accounts.find(principal.id());
                             if (!current.active() || !current.getPassword().equals(principal.getPassword())
-                                    || current.role() != principal.role() || !current.username().equals(principal.username())) {
+                                    || (!principal.wechatBound() && current.role() != principal.role())
+                                    || !current.username().equals(principal.username())) {
                                 var session = req.getSession(false);
                                 if (session != null) session.invalidate();
                                 SecurityContextHolder.clearContext();

@@ -1,0 +1,19 @@
+<view class="page">
+  <view class="home-header">
+    <view class="home-heading"><view class="eyebrow">MINI WMS / {{warehouse || '鱼胶仓库'}}</view><view class="heading">{{name ? name + '，你好' : '仓库工作台'}}</view></view>
+    <button class="settings-entry" bindtap="settings" hover-class="settings-pressed" aria-label="个人设置"><image src="/assets/icons/settings-active.png" mode="aspectFit" /></button>
+  </view>
+  <view class="subtitle">{{today}} · 每一笔库存，清晰有数</view>
+  <view class="hero"><view class="hero-caption">从一个格子，开始今天的工作</view><view class="hero-title">扫码，即刻出入库</view><button class="hero-scan" data-scan="true" bindtap="action"><view class="button-content"><image class="ui-icon" src="/assets/icons/scan-active.png" mode="aspectFit" /><text>扫一扫格子码</text><image class="ui-icon" src="/assets/icons/arrow-right-active.png" mode="aspectFit" /></view></button><view class="hero-grid"><view wx:for="{{[1,2,3,4,5,6]}}" wx:key="*this"></view></view></view>
+  <view class="error" wx:if="{{error}}">{{error}}<button class="plain" bindtap="load">重新加载</button></view>
+  <view wx:if="{{loading}}" class="empty">正在读取工作台…</view>
+  <block wx:else>
+    <view wx:if="{{admin}}" class="two-col"><view wx:for="{{metrics}}" wx:key="label" class="card metric"><view class="muted">{{item.label}}</view><view class="metric-value">{{item.value}}<text>{{item.unit}}</text></view></view></view>
+    <view class="actions mb"><button class="secondary" data-mode="IN" bindtap="action"><view class="button-content"><image class="ui-icon" src="/assets/icons/inbound-active.png" mode="aspectFit" /><text>办理入库</text></view></button><button class="secondary" data-mode="OUT" bindtap="action"><view class="button-content"><image class="ui-icon" src="/assets/icons/outbound-active.png" mode="aspectFit" /><text>办理出库</text></view></button></view>
+    <view wx:if="{{admin && lowStock}}" class="notice" bindtap="inventory">{{lowStock}} 种规格低于库存预警值，点击查看 →</view>
+    <view wx:if="{{admin && trend.length}}" class="card"><view class="row"><text class="section-title">近 7 天出入库</text><text class="muted">● 入库　<text style="color:#ba9365">● 出库</text></text></view><view class="chart"><view class="day" wx:for="{{trend}}" wx:key="date" aria-label="{{item.label}}"><view class="bars"><view style="height:{{item.inHeight}}%"></view><view class="out" style="height:{{item.outHeight}}%"></view></view><text>{{item.date}}</text></view></view></view>
+    <view class="section-head"><text class="section-title">我的最近操作</text><button class="plain" bindtap="history">全部记录 →</button></view>
+    <view class="muted mb">仅显示本人操作的记录</view>
+    <movement-list rows="{{recent}}" /><view wx:if="{{!recent.length}}" class="empty">还没有出入库记录</view>
+  </block>
+</view>

@@ -1,0 +1,106 @@
+# Mini WMS 微信小程序
+
+原生微信小程序，使用 WXML、WXSS 和 JavaScript，无运行时第三方依赖，无需构建 npm。小程序使用微信身份及手机号授权登录，与 PC 后台共用账号库、权限、Redis 会话和业务接口。微信新用户默认没有仓库权限，必须由 PC 管理员授权；现有密码账号不按手机号自动合并为微信账号。当前开放鱼胶仓库，移库入口保持隐藏。
+
+## 微信登录与管理员授权
+
+1. 用户主动点击「授权手机号并微信登录」，同意微信手机号授权。小程序取得手机号动态码及 `wx.login` 登录码，提交 `/api/auth/wechat/login`。
+2. 后端向微信校验登录码、手机号动态码与 OpenID 绑定关系以及手机号水印 AppID。AppSecret、access_token、session_key 不会发送给小程序，也不会写入业务日志。
+3. 首次验证成功创建独立微信账号，`approved=false`，只可查看自己的登录状态或退出。工作台、库存、扫码、流水、个人偏好及所有业务写入均由后端拒绝。
+4. 管理员使用 PC 账号登录 `/admin/users`，按手机号查找用户，点击「授权」，选择「仓库操作员」或「管理员」，勾选「允许访问仓库」，保存。
+5. 用户在待授权页点击「刷新授权状态」即可进入工作台，原扫码入口会保留。取消授权后业务请求返回 `ACCOUNT_PENDING`，小程序回到待授权页；停用账号后旧会话失效。
+
+微信账号以 AppID + OpenID 唯一标识，大小写严格区分。相同手机号的不同微信账号不会自动共享权限。管理员可修改用户显示名称，不能替微信账号设置密码；小程序不提供密码登录或密码修改入口。既有 PC/H5 密码账号继续使用原登录方式。原小程序密码登录会话不再沿用，升级后需通过微信重新登录。
+
+## 服务端与微信平台配置
+
+在后端环境中设置以下变量，AppID 必须与 `project.config.json` 一致：
+
+```dotenv
+WMS_WECHAT_APP_ID=你的小程序AppID
+WMS_WECHAT_APP_SECRET=你的小程序AppSecret
+```
+
+生产环境将配置写入服务器 `/opt/miniwms/.app.env`，保持仅服务管理员可读，再更新 API 容器配置。不要把 AppSecret 放入小程序代码、Git 或聊天记录。根目录 Compose 已传递这两个变量，运行配置通过 `.app.env` 加载。未配置时仅微信登录接口返回明确的未配置错误，既有 Web 登录继续可用。
+
+在微信公众平台确认该小程序已开通手机号获取能力、具备可用额度，并在隐私保护指引中说明手机号用于账号识别及管理员授权。按平台要求配置后端出口 IP 白名单和 `request` 合法域名；后端需可访问 `api.weixin.qq.com` 的 HTTPS 接口。最终手机号授权需在符合能力条件的微信账号及真机中验收。
+
+协议依据微信官方的 [登录凭证校验](https://developers.weixin.qq.com/miniprogram/dev/server/API/user-login/api_code2session.html)、[手机号获取](https://developers.weixin.qq.com/miniprogram/dev/server/API/user-info/phone-number/api_getphonenumber.html) 和 [稳定版 access_token](https://developers.weixin.qq.com/miniprogram/dev/server/API/mp-access-token/api_getstableaccesstoken.html)。后端缓存 access_token，遇到凭据失效只刷新并重试一次。
+
+Flyway V4 新增账号授权状态、手机号、登录来源及微信身份表，既有账号默认保留权限。部署时 API 和 PC 管理界面应一起更新。回滚到不支持授权检查的旧后端前，应先隔离新增微信账号并更换会话命名空间，避免旧版本读取微信会话时忽略授权状态。
+
+若手机号授权后立即出现「请先登录」或「微信登录服务尚未就绪」，先检查连接的 API 是否已发布上述微信登录代码。旧版鉴权会将不存在的 `/api/auth/wechat/login` 当作需要登录的普通 API 而返回 401，单独上传小程序不能解决。新版接口提交空 JSON（携带有效 CSRF）应返回参数校验错误 400；配置缺失时，提交有效格式的动态码会返回明确的未配置错误。此类检查不应使用真实用户的动态码做探测。
+
+## 功能
+
+| 页面 | 管理员 | 仓库操作员 |
+| --- | --- | --- |
+| 工作台 | 库存总量、今日出入库、预警、7 天趋势、本人最近操作 | 本人最近操作、扫码及出入库入口 |
+| 出入库 | 扫码、编号定位、选择格子、重量及库存预览、备注、单据回执 | 相同 |
+| 库存查询 | 按格子或规格查询、货架筛选、低库存筛选、快捷出入库 | 隐藏入口并校验访问权限 |
+| 我的记录 | 本人流水，日期、品种、头数、格子、操作类型及单据号筛选、分页 | 相同，后端强制本人范围 |
+| 个人设置 | 斤/克同步、微信账号认证信息、退出登录 | 相同 |
+
+鱼胶规格、货架绑定、账号管理和完整报表继续在 PC `/admin` 管理。保留 H5 `/m`，可在小程序真机验收、审核和推广完成后切换手机端使用入口。
+
+底部导航保留「工作台、出入库、库存、记录」，操作员隐藏「库存」；「个人设置」从工作台右上角齿轮进入，作为独立页面支持返回。导航、扫码和登录标识采用与 PC 相同的 Lucide 线性图标，以本地 PNG 提供，避免系统字体或 emoji 造成样式差异。图标源数据和许可证位于 `design/`，需要更新时可使用 `scripts/generate-icons.js`（仅生成资源时需要 sharp，运行小程序不需要安装依赖）。
+
+## 导入微信开发者工具
+
+1. 使用微信开发者工具导入本目录 `miniprogram/`，项目根目录包含 `project.config.json`，代码目录已设置为 `app/`。
+2. 确认 `project.config.json` 的 `appid` 为自己的小程序 AppID，并与后端配置一致。真机预览、体验版、上传与发布需要相应开发者权限。小程序代码不需要 AppSecret，后端校验需要配置它。
+3. 直接编译即可，无需安装依赖或执行「构建 npm」。
+
+接口地址在 [app/config.js](app/config.js)。`develop`、`trial`、`release` 默认都连接 `https://wms.piuiq.com`；修改 `develop` 可连接本地演示后端，体验版和正式版继续使用生产地址。小程序只提交微信动态凭证，手机号仅由后端向微信获取。客户端本地只保存会话及按账号隔离的未确认库存请求。
+
+在小程序后台将 `https://wms.piuiq.com` 配置为 **request 合法域名**，然后上传代码、生成体验版并在手机微信验收。接口通过 `wx.request` 使用 Cookie 会话，显式保存并发送 `JSESSIONID`、`XSRF-TOKEN` 和 `X-XSRF-TOKEN`；登录后重新获取 CSRF 凭据，401 自动回到登录页。Cookie 与待确认请求按服务器地址隔离。
+
+接口字段依据微信的 [wx.request 类型定义](https://github.com/wechat-miniprogram/api-typings/blob/master/types/wx/lib.wx.api.d.ts) 实现；域名、HTTPS 等要求参见 [微信网络能力说明](https://developers.weixin.qq.com/miniprogram/dev/framework/ability/network.html)。
+
+## 本地演示
+
+在仓库根目录运行以下命令，创建独立的内存数据库：
+
+```sh
+WMS_DEMO=true WMS_DB_USER=sa WMS_DB_PASSWORD='' \
+WMS_DB_URL='jdbc:h2:mem:miniprogram_dev;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1' \
+mvn -f backend/pom.xml spring-boot:run -Dspring-boot.run.arguments=--server.port=8081
+```
+
+将 `app/config.js` 的 `develop` 改成 `http://127.0.0.1:8081`，可在开发者工具本地设置中启用本地接口调试并重新编译。PC 演示后台用 `admin / miniwms-demo-2026` 登录；小程序仍必须进行微信及手机号授权，真实联调前须设置上面的服务端配置。自动测试会使用隔离的微信接口替身，不在生产代码中提供模拟登录后门。数据库在后端退出后清空。真机上的 `127.0.0.1` 指手机自身，真机验收请使用已配置合法域名的 HTTPS 测试服务。
+
+## 现有二维码
+
+小程序内的「扫一扫格子码」可读取现有 `/m/slot/<UUID>` 货架标签、原域名标签以及 UUID 内容，仅提取 token 并通过自己的后端解析，不会请求二维码中的任意 URL。也可手动输入格子完整编号。普通货架仓库的二维码会提示仓库暂未开放。
+
+目前已有标签在微信外部直接扫描仍然打开 H5。若要用微信扫一扫现有普通链接二维码后直接进入小程序，需要在微信公众平台配置「扫普通链接二维码打开小程序」规则，指向 `pages/operations/index`，匹配对应站点的 `/m/slot/` 链接，并完成平台校验与发布。小程序已支持该入口传入的 `q` 参数；直接调试也支持 `token=<UUID>` 或 `scene=<UUID>`。这项后台配置没有包含在代码提交中，普通二维码不会因新增小程序代码而自动改变打开方式。
+
+扫码调用见 [微信扫码类型定义](https://github.com/wechat-miniprogram/api-typings/blob/master/types/wx/lib.wx.api.d.ts)，链接二维码配置见 [微信官方说明](https://developers.weixin.qq.com/miniprogram/introduction/qrcode.html)。
+
+## 重量与重试
+
+重量默认留空，切换入库/出库或操作成功后清空。底层库存始终以斤提交，精度为 `0.001 斤`；克输入精度为 `0.5 克`。估算个数按库存斤数乘以头数计算，不能作为实际出库依据。
+
+每笔操作在发送前，将完整请求和 `requestId` 按当前账号写入本地存储；没有可用存储时不会发送。网络失败或 5xx 后锁定表单，展示「重试原请求」，切换页面、关闭后重开或重新登录同一账号仍可恢复。重试使用完全相同的请求，由后端幂等校验避免重复记账。其他账号不会读取或重试这笔请求。业务冲突会解锁表单并重新读取对应格子的库存；登录失效后需先使用原账号登录，再确认原请求。
+
+## 验证
+
+需要 Node.js 20+。常规检查无需安装 npm 依赖：
+
+```sh
+npm --prefix miniprogram run check
+npm --prefix miniprogram test
+```
+
+`check` 检查 JavaScript、JSON、WXML 表达式、页面注册、模块路径及事件处理函数。自动测试覆盖微信手机号授权拒绝、两种动态码提交、待授权隔离、授权刷新、撤销跳转、旧密码会话拒绝、会话轮换、CSRF、重量精度、二维码解析和库存重试。后端测试同时覆盖真实 HTTP 微信接口替身、会话轮换、并发注册、权限拦截、授权及撤销、敏感凭据不返回、既有数据迁移。WXML/WXSS 最终编译和界面请在微信开发者工具中验收。
+
+完整 HTTP 联调需要 Java 17+ 和已打包后端：
+
+```sh
+mvn -f backend/pom.xml package -DskipTests
+npm --prefix miniprogram run smoke
+```
+
+`smoke` 自动启动独立 Spring 进程，强制使用 H2 内存库和随机回环端口，结束后关闭。它通过测试专用的密码账号构造业务页面会话，验证首页、库存、单位保存、超时重试不重复记账、二维码和操作员数据范围；微信认证链路由独立客户端测试及后端 `WeChatAuthTest`、`WeChatClientTest` 覆盖。测试不会使用 `.env.cloud` 或访问线上数据库。GitHub Actions 一并运行这些检查；小程序上传、审核与发布仍通过微信平台单独完成。
+
+建议真机最后验收：首次微信手机号授权进入待授权页；管理员按手机号授权；用户刷新后进入工作台；分别验证操作员与管理员范围、撤销授权和停用；再验收扫码、斤/克出入库、本人记录、退出及重新登录，确认普通链接二维码规则生效。

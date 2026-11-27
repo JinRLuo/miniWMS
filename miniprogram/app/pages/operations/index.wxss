@@ -1,0 +1,11 @@
+.page button.scan-button { background: #eaf2e9; color: #245b48; padding: 28rpx 16rpx; margin-bottom: 24rpx; border: 2rpx dashed #b8cdb9; }
+.scan-button .ui-icon { width: 42rpx; height: 42rpx; flex-basis: 42rpx; }
+.code-entry { display: flex; gap: 14rpx; margin-bottom: 20rpx; min-width: 0; }
+.code-entry input { flex: 1 1 0%; width: 0; min-width: 0; padding: 22rpx 18rpx; font-size: 25rpx; }
+.page .code-entry button:not([size='mini']) { padding: 20rpx; width: auto; min-width: 100rpx; flex: 0 0 auto; white-space: nowrap; }
+.stock-detail { background: #f2f6ef; border-radius: 20rpx; padding: 24rpx; margin: 26rpx 0; }
+.stock-amount { font-size: 48rpx; font-weight: 700; margin-top: 12rpx; overflow-wrap: anywhere; }
+.weight-input { font-size: 40rpx; height: 110rpx; margin-bottom: 8rpx; }
+.preview { padding: 22rpx; background: #edf5ec; color: #245b48; border-radius: 16rpx; margin-bottom: 24rpx; font-weight: 600; flex-wrap: wrap; }
+.footnote { text-align: center; margin-top: 20rpx; font-size: 21rpx; }
+.page .notice button:not([size='mini']) { margin-top: 20rpx; }

@@ -75,6 +75,12 @@ jobs:
       - name: Test deployment receiver
         run: python3 -m unittest discover -s deploy -p 'test_*.py'
 
+      - name: Check and test WeChat mini program
+        run: |
+          npm --prefix miniprogram run check
+          npm --prefix miniprogram test
+          npm --prefix miniprogram run smoke
+
       - name: Build frontend
         run: |
           npm --prefix frontend ci

@@ -9,6 +9,9 @@ export interface Account {
   displayName: string
   role: Role
   active: boolean
+  approved: boolean
+  phone: string | null
+  wechatBound: boolean
 }
 export interface Product {
   id: number

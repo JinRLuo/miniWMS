@@ -1,0 +1,21 @@
+<view class="page">
+  <view class="eyebrow">INVENTORY</view><view class="heading">库存，一目了然</view><view class="subtitle">按格子定位，按规格掌握总量</view>
+  <view class="tabs"><button class="{{tab === 'slot' ? 'selected' : ''}}" data-tab="slot" bindtap="tab">按格子</button><button class="{{tab === 'product' ? 'selected' : ''}}" data-tab="product" bindtap="tab">按规格</button></view>
+  <input value="{{query}}" bindinput="search" placeholder="搜索格子编号、品种或头数" class="mb" confirm-type="search" />
+  <picker wx:if="{{tab === 'slot'}}" range="{{shelves}}" range-key="name" value="{{shelfIndex}}" bindchange="shelf"><view class="picker mb">{{shelves[shelfIndex].name}}</view></picker>
+  <view wx:else class="row mb"><text class="muted">仅显示低库存规格</text><switch color="#245b48" checked="{{lowOnly}}" bindchange="low" /></view>
+  <view class="error" wx:if="{{error}}">{{error}}<button class="plain" bindtap="load">重新加载</button></view>
+  <view wx:if="{{loading}}" class="empty">正在查询库存…</view>
+  <block wx:else>
+    <view class="muted mb">共 {{count}} {{tab === 'slot' ? '个格子' : '种规格'}}</view>
+    <view wx:for="{{shown}}" wx:key="id" class="card">
+      <view class="row"><text class="section-title">{{tab === 'slot' ? item.code : item.name}}</text><text class="tag {{item.low ? 'out' : ''}}">{{item.low ? '库存预警' : !item.active ? '已停用' : tab === 'slot' && !item.productId ? '未绑定' : '已启用'}}</text></view>
+      <view wx:if="{{tab === 'slot'}}" class="muted">{{item.productName || '请在电脑端绑定鱼胶规格'}}</view>
+      <view class="amount">{{item.amount}}<text class="muted" wx:if="{{item.headCount}}">约 {{item.estimate}} 个</text></view>
+      <view wx:if="{{tab === 'product'}}" class="muted">预警值 {{item.warning}} · {{item.sku}}</view>
+      <view wx:if="{{tab === 'slot'}}" class="actions"><button class="secondary" data-id="{{item.id}}" data-mode="IN" bindtap="operation" disabled="{{!item.active || !item.productId || !item.productActive}}">入库</button><button class="secondary" data-id="{{item.id}}" data-mode="OUT" bindtap="operation" disabled="{{!item.active || !item.productId || !item.quantity}}">出库</button><button class="secondary" data-id="{{item.id}}" bindtap="history">记录</button></view>
+    </view>
+    <view wx:if="{{!shown.length && !error}}" class="empty">没有符合条件的库存</view>
+    <button wx:if="{{hasMore}}" class="plain" bindtap="more">加载更多</button>
+  </block>
+</view>

@@ -1,0 +1,19 @@
+.home-header { display: flex; align-items: center; gap: 24rpx; justify-content: space-between; }
+.home-heading { min-width: 0; flex: 1; }
+.page button.settings-entry:not([size='mini']) { display: flex; align-items: center; justify-content: center; flex: 0 0 76rpx; width: 76rpx; height: 76rpx; padding: 16rpx; border-radius: 24rpx; background: #fff; border: 1rpx solid #e2eae3; align-self: flex-start; }
+.settings-entry image { width: 42rpx; height: 42rpx; }
+.settings-pressed { opacity: .65; }
+.hero { background: #245b48; color: white; border-radius: 30rpx; padding: 34rpx; margin: 32rpx 0; position: relative; overflow: hidden; }
+.hero-caption { font-size: 23rpx; opacity: .65; position: relative; z-index: 1; }
+.hero-title { font-size: 38rpx; font-weight: 700; margin: 8rpx 0 28rpx; position: relative; z-index: 1; }
+.page .hero button.hero-scan:not([size='mini']) { background: #fff; color: #245b48; font-size: 25rpx; width: auto; display: inline-flex; text-align: left; padding: 20rpx 24rpx; position: relative; z-index: 1; white-space: nowrap; }
+.hero-grid { position: absolute; right: -28rpx; bottom: 10rpx; display: grid; grid-template-columns: repeat(2, 90rpx); gap: 14rpx; transform: rotate(-12deg); }
+.hero-grid view { height: 66rpx; border: 2rpx solid #ffffff20; background: #ffffff08; border-radius: 8rpx; }
+.metric { margin: 0; padding: 24rpx; }
+.metric-value { font-size: 43rpx; font-weight: 700; line-height: 1.4; margin-top: 10rpx; overflow-wrap: anywhere; }
+.metric-value text { font-size: 22rpx; font-weight: 400; color: #8c988e; margin-left: 10rpx; }
+.chart { display: flex; height: 200rpx; gap: 16rpx; margin-top: 28rpx; justify-content: space-between; }
+.day { flex: 1; text-align: center; font-size: 19rpx; color: #8c988e; display: flex; flex-direction: column; min-width: 0; }
+.bars { flex: 1; display: flex; align-items: flex-end; justify-content: center; gap: 5rpx; margin-bottom: 10rpx; }
+.bars view { background: #487c59; width: 14rpx; border-radius: 5rpx 5rpx 0 0; min-height: 3rpx; }
+.bars view.out { background: #c4a379; }
