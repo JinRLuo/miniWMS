@@ -87,7 +87,7 @@ watch(unit, async value => {
   </div>
   <section class="panel">
     <div class="panel-head">
-      <div><h2>{{ restricted ? '我的最近操作' : '最近操作' }}</h2><p v-if="restricted">仅显示本人操作的出入库记录。</p></div><button class="text-button" @click="$emit('navigate', 'history')">查看记录 <ArrowRight :size="16" /></button>
+      <div><h2>{{ restricted ? '我的最近操作' : '最近操作' }}</h2><p>{{ restricted ? '本周本人操作的出入库记录。' : '本周所有人的最近出入库操作。' }}</p></div><button class="text-button" @click="$emit('navigate', 'history')">查看记录 <ArrowRight :size="16" /></button>
     </div>
     <div class="table-scroll">
       <table v-if="recent.length" role="table">
@@ -101,7 +101,7 @@ watch(unit, async value => {
           <td role="cell" data-label="时间">{{ dateTime(row.createdAt, zone) }}</td>
         </tr></tbody>
       </table>
-      <p v-else class="empty">暂无库存操作。</p>
+      <p v-else class="empty">本周暂无库存操作。</p>
     </div>
   </section>
 </template>

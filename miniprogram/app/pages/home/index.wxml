@@ -12,8 +12,8 @@
     <view class="actions mb"><button class="secondary" data-mode="IN" bindtap="action"><view class="button-content"><image class="ui-icon" src="/assets/icons/inbound-active.png" mode="aspectFit" /><text>办理入库</text></view></button><button class="secondary" data-mode="OUT" bindtap="action"><view class="button-content"><image class="ui-icon" src="/assets/icons/outbound-active.png" mode="aspectFit" /><text>办理出库</text></view></button></view>
     <view wx:if="{{admin && lowStock}}" class="notice" bindtap="inventory">{{lowStock}} 种规格低于库存预警值，点击查看 →</view>
     <view wx:if="{{admin && trend.length}}" class="card"><view class="row"><text class="section-title">近 7 天出入库</text><text class="muted">● 入库　<text style="color:#ba9365">● 出库</text></text></view><view class="chart"><view class="day" wx:for="{{trend}}" wx:key="date" aria-label="{{item.label}}"><view class="bars"><view style="height:{{item.inHeight}}%"></view><view class="out" style="height:{{item.outHeight}}%"></view></view><text>{{item.date}}</text></view></view></view>
-    <view class="section-head"><text class="section-title">{{admin ? '最近操作' : '我的最近操作'}}</text><button class="plain" bindtap="history">全部记录 →</button></view>
-    <view class="muted mb">{{admin ? '所有人的最近出入库操作' : '仅显示本人操作的记录'}}</view>
-    <movement-list rows="{{recent}}" /><view wx:if="{{!recent.length}}" class="empty">还没有出入库记录</view>
+    <view class="section-head"><text class="section-title">{{admin ? '最近操作' : '我的最近操作'}}</text><button class="plain" bindtap="history">查看记录 →</button></view>
+    <view class="muted mb">{{admin ? '本周所有人的最近出入库操作' : '本周本人操作的记录'}}</view>
+    <movement-list rows="{{recent}}" /><view wx:if="{{!recent.length}}" class="empty">本周还没有出入库记录</view>
   </block>
 </view>

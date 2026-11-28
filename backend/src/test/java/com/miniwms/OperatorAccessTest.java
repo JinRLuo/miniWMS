@@ -111,6 +111,39 @@ class OperatorAccessTest {
         assertThat(csv).contains("OWN-ACCESS").doesNotContain("OTHER-SAME-PRODUCT","OTHER-ACCESS");
     }
 
+    @Test
+    void operatorChoicesAndExactFilterKeepSameNameAndInactiveAccountsDistinct() throws Exception {
+        long admin=accounts.loadUserByUsername("admin").id();
+        var first=operator(admin);var second=operator(admin);var unused=operator(admin);
+        var administrator=login("admin","test-admin-password");var own=login(first.username(),PASSWORD);
+        var f=fixture(admin);
+        stock.adjust(first.id(),Stock.Type.IN,new Stock.Adjust(UUID.randomUUID(),f.slot(),f.product(),1,"ACTOR-FIRST",null),2);
+        stock.adjust(second.id(),Stock.Type.IN,new Stock.Adjust(UUID.randomUUID(),f.slot(),f.product(),1,"ACTOR-SECOND",null),2);
+        accounts.save(second.id(),new Accounts.Form(second.username(),second.displayName(),second.role(),false,null),admin);
+        var context=json.readTree(mvc.perform(get("/api/stock/context").session(administrator).param("warehouseId","2"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+        var ids=new java.util.ArrayList<Long>();
+        context.get("historyOperators").forEach(value->{
+            ids.add(value.get("id").asLong());
+            assertThat(value.has("phone")).isFalse();
+            if(value.get("id").asLong()==second.id()) assertThat(value.get("active").asBoolean()).isFalse();
+        });
+        assertThat(ids).contains(first.id(),second.id()).doesNotContain(unused.id());
+        mvc.perform(get("/api/stock/context").session(own).param("warehouseId","2").param("mine","false"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.historyOperators.length()").value(1))
+                .andExpect(jsonPath("$.historyOperators[0].id").value(first.id()));
+        mvc.perform(get("/api/stock/movements").session(administrator).param("warehouseId","2").param("operatorId",String.valueOf(second.id())))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rows.length()").value(1))
+                .andExpect(jsonPath("$.rows[0].documentNo").value("ACTOR-SECOND"));
+        mvc.perform(get("/api/stock/movements").session(own).param("warehouseId","2").param("mine","false").param("operatorId",String.valueOf(second.id())))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rows").isEmpty());
+        var result=mvc.perform(get("/api/stock/movements.csv").session(administrator).param("warehouseId","2").param("operatorId",String.valueOf(second.id())))
+                .andExpect(request().asyncStarted()).andReturn();
+        String csv=mvc.perform(asyncDispatch(result)).andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(csv).contains("ACTOR-SECOND").doesNotContain("ACTOR-FIRST");
+    }
+
     private Accounts.View operator(long admin) {
         return accounts.save(null,new Accounts.Form("access-"+UUID.randomUUID(),"权限测试",Accounts.Role.OPERATOR,true,PASSWORD),admin);
     }

@@ -48,6 +48,13 @@ function dateTime(value, zone = 'Asia/Shanghai') {
       pad(date.getUTCHours()) + ':' + pad(date.getUTCMinutes()) + '（上海）'
   }
 }
+function weekRange(today) {
+  // Use the server's warehouse date, independent of the phone's timezone.
+  const monday = new Date(today + 'T00:00:00Z')
+  monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7)
+  const sunday = new Date(monday.getTime() + 6 * 86400000)
+  return { from: monday.toISOString().slice(0, 10), to: sunday.toISOString().slice(0, 10) }
+}
 function movement(row, preference, zone) {
   const unit = row.unit === '斤' ? unitLabel(preference) : row.unit
   return Object.assign({}, row, { label: labels[row.type], time: dateTime(row.createdAt, zone),
@@ -73,4 +80,4 @@ function passwordError(current, next, confirm) {
   if (current === next) return '新密码不能与当前密码相同'
   return ''
 }
-module.exports = { unitLabel, decimal, weight, quantityInput, requestId, scanToken, entryToken, dateTime, movement, slotView, passwordError }
+module.exports = { unitLabel, decimal, weight, quantityInput, requestId, scanToken, entryToken, dateTime, weekRange, movement, slotView, passwordError }

@@ -1,5 +1,12 @@
 export interface Warehouse { id: number; name: string; type: 'GENERAL' | 'FISH_MAW' }
 
+export function weekRange(today: string) {
+  const monday = new Date(today + 'T00:00:00Z')
+  monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7)
+  const sunday = new Date(monday.getTime() + 6 * 86400000)
+  return { from: monday.toISOString().slice(0, 10), to: sunday.toISOString().slice(0, 10) }
+}
+
 export type Role = 'ADMIN' | 'OPERATOR'
 export type Type = 'IN' | 'OUT' | 'TRANSFER_OUT' | 'TRANSFER_IN'
 
@@ -61,10 +68,12 @@ export interface Slot {
 }
 export type ProductChoice = Pick<Product, 'id' | 'sku' | 'name' | 'active' | 'variety' | 'headCount'>
 export type SlotChoice = Pick<Slot, 'id' | 'code' | 'active'>
+export interface OperatorChoice { id: number; displayName: string; active: boolean }
 export interface StockWorkspace {
   locations: Slot[]
   historyProducts: ProductChoice[]
   historySlots: SlotChoice[]
+  historyOperators: OperatorChoice[]
   zone: string
   today: string
 }

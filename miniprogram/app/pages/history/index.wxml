@@ -2,12 +2,13 @@
   <view class="eyebrow">{{admin ? 'WAREHOUSE ACTIVITY' : 'MY ACTIVITY'}}</view><view class="heading">每一次库存变动</view><view class="subtitle mb">{{admin ? '显示所有人的出入库记录' : '仅显示本人操作的出入库记录'}}</view>
   <view class="card">
     <view class="row filter-heading"><text class="section-title">查询记录</text><button class="plain filter-toggle" bindtap="toggle" aria-expanded="{{expanded}}"><view class="button-content"><text>{{expanded ? '收起筛选' : '展开筛选'}}</text><image class="ui-icon" src="/assets/icons/chevron-{{expanded ? 'up' : 'down'}}-active.png" mode="aspectFit" /></view></button></view>
+    <view wx:if="{{form.from && form.to}}" class="muted history-range">{{form.from}} 至 {{form.to}}</view>
     <view wx:if="{{expanded}}" class="filters">
       <view class="two-col"><view class="field"><text class="field-label">开始日期</text><picker mode="date" value="{{form.from}}" data-field="from" bindchange="input"><view class="picker">{{form.from || '不限'}}</view></picker></view><view class="field"><text class="field-label">结束日期</text><picker mode="date" value="{{form.to}}" data-field="to" bindchange="input"><view class="picker">{{form.to || '不限'}}</view></picker></view></view>
       <view class="two-col"><view class="field"><text class="field-label">品种</text><picker range="{{varieties}}" value="{{varietyIndex}}" bindchange="variety"><view class="picker">{{varieties[varietyIndex]}}</view></picker></view><view class="field"><text class="field-label">头数</text><picker range="{{heads}}" value="{{headIndex}}" bindchange="head" disabled="{{!form.variety}}"><view class="picker {{!form.variety ? 'disabled' : ''}}">{{headIndex ? heads[headIndex] + '头' : '全部头数'}}</view></picker></view></view>
       <view class="field"><text class="field-label">格子</text><picker range="{{slots}}" range-key="code" value="{{slotIndex}}" bindchange="slot"><view class="picker">{{slots[slotIndex].code}}</view></picker></view>
       <view class="field"><text class="field-label">操作类型</text><picker range="{{types}}" range-key="label" value="{{typeIndex}}" bindchange="type"><view class="picker">{{types[typeIndex].label}}</view></picker></view>
-      <view wx:if="{{admin}}" class="field"><text class="field-label">操作人</text><input value="{{form.operator}}" data-field="operator" bindinput="input" placeholder="姓名或账号" maxlength="160" /></view>
+      <view wx:if="{{admin}}" class="field"><text class="field-label">操作人</text><picker range="{{operators}}" range-key="label" value="{{operatorIndex}}" bindchange="operator"><view class="picker">{{operators[operatorIndex].label}}</view></picker></view>
       <view class="field"><text class="field-label">单据号</text><input value="{{form.document}}" data-field="document" bindinput="input" placeholder="输入单据号" maxlength="160" /></view>
       <view class="actions"><button class="secondary" bindtap="reset" disabled="{{loading}}">重置</button><button class="primary" bindtap="apply" disabled="{{loading}}">查询</button></view>
     </view>

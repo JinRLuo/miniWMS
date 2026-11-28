@@ -1,5 +1,6 @@
 .filters { padding-top: 24rpx; }
 .filter-heading { min-height: 64rpx; }
+.history-range { margin-top: 10rpx; font-size: 24rpx; }
 .filter-toggle .ui-icon { width: 28rpx; height: 28rpx; flex-basis: 28rpx; }
 .pagination { display: flex; align-items: center; gap: 20rpx; margin-top: 30rpx; }
 .page .pagination button:not([size='mini']) { flex: 1 1 0%; width: 0; min-width: 0; padding: 20rpx 12rpx; font-size: 25rpx; white-space: nowrap; }

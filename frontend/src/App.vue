@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, provide, ref } from 'vue'
 import { Archive, ArrowDownUp, BarChart3, Boxes, ChevronRight, ClipboardList, LayoutDashboard, LogOut, Package, ScanLine, Settings as SettingsIcon, Warehouse, Users as UserIcon } from 'lucide-vue-next'
 import { api, ApiError, errorMessage, setWarehouse } from './api'
-import type { Account, Product, ProductChoice, Shelf, Slot, SlotChoice, StockWorkspace, Summary, Warehouse as WarehouseInfo } from './model'
+import type { Account, Product, ProductChoice, Shelf, Slot, SlotChoice, OperatorChoice, StockWorkspace, Summary, Warehouse as WarehouseInfo } from './model'
 import Dashboard from './components/Dashboard.vue'
 import StockForm from './components/StockForm.vue'
 import CatalogView from './components/CatalogView.vue'
@@ -46,6 +46,7 @@ const workspaceReady = ref(false)
 const workspaceInfo = ref({ zone: 'Asia/Shanghai', today: '' })
 const historyProducts = ref<ProductChoice[]>([])
 const historySlots = ref<SlotChoice[]>([])
+const historyOperators = ref<OperatorChoice[]>([])
 const products = ref<Product[]>([])
 const shelves = ref<Shelf[]>([])
 const slots = ref<Slot[]>([])
@@ -164,7 +165,7 @@ function expired() {
   preferences.value = { weightUnit: 'JIN' }
   summary.value = undefined
   workspaceReady.value = false
-  historyProducts.value = []; historySlots.value = []
+  historyProducts.value = []; historySlots.value = []; historyOperators.value = []
   products.value = []
   shelves.value = []
   slots.value = []
@@ -175,14 +176,16 @@ async function refresh() {
   const version = ++loadVersion
   try {
     if (isAdmin.value) {
-      const [nextSummary, nextProducts, nextShelves, nextSlots] = await Promise.all([
+      const [nextSummary, nextProducts, nextShelves, nextSlots, context] = await Promise.all([
         api<Summary>('/reports/summary'), api<Product[]>('/products'), api<Shelf[]>('/shelves'), api<Slot[]>('/slots'),
+        api<StockWorkspace>('/stock/context'),
       ])
       if (loadVersion !== version) return
       summary.value = nextSummary
       workspaceInfo.value = { zone: nextSummary.zone, today: nextSummary.today }
       products.value = nextProducts; shelves.value = nextShelves; slots.value = nextSlots
       historyProducts.value = nextProducts; historySlots.value = nextSlots
+      historyOperators.value = context.historyOperators || []
     } else {
       const context = await api<StockWorkspace>('/stock/context')
       if (loadVersion !== version) return
@@ -190,6 +193,7 @@ async function refresh() {
       workspaceInfo.value = { zone: context.zone, today: context.today }
       products.value = []; shelves.value = []; slots.value = context.locations
       historyProducts.value = context.historyProducts; historySlots.value = context.historySlots
+      historyOperators.value = context.historyOperators || []
     }
     workspaceReady.value = true
     dataError.value = ''
@@ -304,7 +308,7 @@ onBeforeUnmount(() => {
           <StockForm v-else-if="page === 'operations'" :key="operationKey" :slots="slots" :products="products" :warehouse="warehouse" :mobile="mobile" :initial-slot-id="initialSlotId" :initial-mode="preset" :token="token" @changed="refresh" />
           <CatalogView v-else-if="isAdmin && ['products', 'shelves', 'inventory'].includes(page)" :page="page" :products="products" :shelves="shelves"
             :slots="slots" :warehouse="warehouse" :user="user" :mobile="mobile" @changed="refresh" @history="openHistory" @stock="openStock" />
-          <History v-else-if="page === 'history'" :warehouse="warehouse" :zone="workspaceInfo.zone" :mobile="mobile" :own-only="!isAdmin" :initial-slot="historySlot" :products="historyProducts" :slots="historySlots" />
+          <History v-else-if="page === 'history'" :warehouse="warehouse" :zone="workspaceInfo.zone" :today="workspaceInfo.today" :mobile="mobile" :own-only="!isAdmin" :initial-slot="historySlot" :products="historyProducts" :slots="historySlots" :operators="historyOperators" />
           <Reports v-else-if="isAdmin && page === 'reports' && summary" :catalog="products" :slots="slots" :warehouse="warehouse" :today="summary.today" :units="summary.units.map(u => u.unit)" />
           <Users v-else-if="page === 'users' && user.role === 'ADMIN'" @changed="refreshUser" />
           <Settings v-else-if="page === 'settings'" :preferences="preferences" @saved="preferences = $event" @password-changed="passwordChanged" />

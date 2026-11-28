@@ -7,16 +7,16 @@ import AppSelect from './AppSelect.vue'
 import DateInput from './DateInput.vue'
 import { useWeight } from '../weight'
 import { showTransfers } from '../features'
-import { dateTime, typeLabel, type Movement, type Page, type ProductChoice, type SlotChoice, type Transfer, type Warehouse } from '../model'
+import { dateTime, weekRange, typeLabel, type Movement, type Page, type ProductChoice, type SlotChoice, type OperatorChoice, type Transfer, type Warehouse } from '../model'
 
-const props = defineProps<{ zone: string; mobile: boolean; ownOnly: boolean; initialSlot: string; products: ProductChoice[]; slots: SlotChoice[]; warehouse: Warehouse }>()
+const props = defineProps<{ zone: string; today: string; mobile: boolean; ownOnly: boolean; initialSlot: string; products: ProductChoice[]; slots: SlotChoice[]; operators: OperatorChoice[]; warehouse: Warehouse }>()
 const { formatWeight, displayUnit } = useWeight()
 const slotLabel = computed(() => props.warehouse.type === 'FISH_MAW' ? '格子' : '货架层')
 const tab = ref<'movements' | 'transfers'>('movements')
 const form = ref({
-  from: '', to: '', variety: '', headCount: '' as number | '', productId: '' as number | '',
+  ...weekRange(props.today), variety: '', headCount: '' as number | '', productId: '' as number | '',
   slotId: props.slots.find(slot => slot.code === props.initialSlot)?.id ?? '' as number | '',
-  type: '', operator: '', document: '', sourceSlotId: '' as number | '', targetSlotId: '' as number | '',
+  type: '', operatorId: '' as number | '', document: '', sourceSlotId: '' as number | '', targetSlotId: '' as number | '',
 })
 const applied = ref({ ...form.value })
 const movements = ref<Movement[]>([])
@@ -31,6 +31,8 @@ const exportLink = computed(() => '/api/stock/movements.csv' + filters.value)
 const hasRows = computed(() => tab.value === 'movements' ? movements.value.length > 0 : transfers.value.length > 0)
 const slotOptions = computed(() => [{ value: '' as const, label: '全部' + slotLabel.value },
   ...props.slots.map(slot => ({ value: slot.id, label: slot.code + (slot.active ? '' : '（已停用）') }))])
+const operatorOptions = computed(() => [{ value: '' as const, label: '全部操作人' },
+  ...props.operators.map(user => ({ value: user.id, label: user.displayName + '（#' + user.id + (user.active ? '' : '，已停用') + '）' }))])
 
 async function load() {
   const version = ++loadVersion
@@ -52,7 +54,10 @@ async function load() {
   } catch (e) { if (loadVersion === version) error.value = errorMessage(e) }
   finally { if (loadVersion === version) loading.value = false }
 }
-function apply() { applied.value = { ...form.value }; page.value = 1; void load() }
+function apply() {
+  if (!form.value.from && !form.value.to) Object.assign(form.value, weekRange(props.today))
+  applied.value = { ...form.value }; page.value = 1; void load()
+}
 function choose(value: typeof tab.value) { tab.value = value; apply() }
 function paginate(delta: number) { page.value += delta; void load() }
 watch(() => props.initialSlot, code => {
@@ -89,7 +94,7 @@ onMounted(load)
           <label class="field">来源{{ slotLabel }}<AppSelect v-model="form.sourceSlotId" :label="'来源' + slotLabel" :options="slotOptions" /></label>
           <label class="field">目标{{ slotLabel }}<AppSelect v-model="form.targetSlotId" :label="'目标' + slotLabel" :options="slotOptions" /></label>
         </template>
-        <label v-if="!ownOnly" class="field">操作人<input v-model.trim="form.operator" placeholder="姓名或账号" maxlength="160"></label>
+        <label v-if="!ownOnly" class="field">操作人<AppSelect v-model="form.operatorId" label="操作人" :options="operatorOptions" /></label>
         <label class="field">单据号<input v-model.trim="form.document" placeholder="输入单据号" maxlength="160"></label>
       </div>
       <div class="filter-actions"><button class="primary" :disabled="loading"><Search :size="17" /> 查询</button></div>

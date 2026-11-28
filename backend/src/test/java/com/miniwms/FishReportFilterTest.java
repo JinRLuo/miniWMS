@@ -3,6 +3,8 @@ package com.miniwms;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.DayOfWeek;
+import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -67,6 +69,43 @@ class FishReportFilterTest {
         assertThat(csv).contains(first.product().sku(), duplicate.product().sku())
                 .doesNotContain(otherHeads.product().sku(), otherVariety.product().sku(), similarName.product().sku());
         assertThat(csv.lines().count()).isEqualTo(9);
+    }
+
+    @Test
+    void undatedHistoryTransfersAndCsvDefaultToWarehouseWeekWhileExplicitDatesStillWork() throws Exception {
+        var zone = ZoneId.of("Asia/Shanghai");
+        var monday = LocalDate.now(zone).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        long begin = monday.atStartOfDay(zone).toInstant().toEpochMilli();
+        long end = monday.plusWeeks(1).atStartOfDay(zone).toInstant().toEpochMilli();
+        for (String type : List.of("IN","OUT","TRANSFER_OUT","TRANSFER_IN")) {
+            long time = switch (type) {
+                case "IN" -> begin - 1;
+                case "OUT" -> begin;
+                case "TRANSFER_OUT" -> end - 1;
+                default -> end;
+            };
+            db.jdbc.update("UPDATE stock_movements SET created_at=? WHERE product_id=? AND type=?",time,first.product().id(),type);
+        }
+        db.jdbc.update("UPDATE stock_transfers SET created_at=? WHERE product_id=?",end - 1,first.product().id());
+        String product = String.valueOf(first.product().id());
+        mvc.perform(get("/api/stock/movements").session(session).param("warehouseId","2").param("productId",product))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rows.length()").value(2))
+                .andExpect(jsonPath("$.rows[*].type",containsInAnyOrder("OUT","TRANSFER_OUT")));
+        mvc.perform(get("/api/stock/transfers").session(session).param("warehouseId","2").param("productId",product))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rows.length()").value(1));
+        var result = mvc.perform(get("/api/stock/movements.csv").session(session).param("warehouseId","2").param("productId",product))
+                .andExpect(request().asyncStarted()).andReturn();
+        String csv = mvc.perform(asyncDispatch(result)).andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(csv.lines().count()).isEqualTo(3);
+        assertThat(csv).doesNotContain("ADMIN-FILTER-IN");
+        mvc.perform(get("/api/stock/movements").session(session).param("warehouseId","2").param("productId",product)
+                        .param("from",monday.minusDays(1).toString()).param("to",monday.minusDays(1).toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rows.length()").value(1))
+                .andExpect(jsonPath("$.rows[0].type").value("IN"));
+        db.jdbc.update("UPDATE stock_transfers SET created_at=? WHERE product_id=?",end,first.product().id());
+        mvc.perform(get("/api/stock/transfers").session(session).param("warehouseId","2").param("productId",product))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rows").isEmpty());
     }
 
     @Test

@@ -1,6 +1,14 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
-const { quantityInput, weight, scanToken, entryToken, passwordError, requestId, movement } = require('../app/utils/model')
+const { quantityInput, weight, scanToken, entryToken, passwordError, requestId, movement, weekRange } = require('../app/utils/model')
+
+test('warehouse week runs Monday through Sunday across month and year boundaries', () => {
+  for (const day of ['2026-11-23', '2026-11-28', '2026-11-29']) {
+    assert.deepEqual(weekRange(day), { from: '2026-11-23', to: '2026-11-29' })
+  }
+  assert.deepEqual(weekRange('2027-01-01'), { from: '2026-12-28', to: '2027-01-03' })
+  assert.deepEqual(weekRange('2026-03-01'), { from: '2026-02-23', to: '2026-03-01' })
+})
 
 test('weights convert grams to exact thousandths of a jin', () => {
   assert.equal(quantityInput('0.001', 'JIN'), 0.001)

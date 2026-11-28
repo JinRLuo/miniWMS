@@ -18,7 +18,8 @@ class Reports {
 
     record Filters(LocalDate from, LocalDate to, String product, String shelf, Stock.Type type, String operator,
                    String document, Boolean mine, String source, String target,
-                   Long productId, Long slotId, Long sourceSlotId, Long targetSlotId, Long warehouseId, String variety, Integer headCount) {}
+                   Long productId, Long slotId, Long sourceSlotId, Long targetSlotId, Long warehouseId, String variety, Integer headCount,
+                   Long operatorId) {}
     record Movement(long id, long createdAt, Stock.Type type, String documentNo, String sku, String product,
                     String slot, BigDecimal quantity, BigDecimal beforeQty, BigDecimal afterQty, String operator, String note, String unit, Integer headCount) {}
     record Transfer(long id, long createdAt, String transferNo, String sku, String product, String source,
@@ -210,11 +211,17 @@ class Reports {
         List<Object> args = new ArrayList<>();
         add(sql, args, "p.warehouse_id=?", Warehouses.id(f.warehouseId()));
         fishFilters(sql, args, f.variety(), f.headCount());
-        if (f.from() != null) add(sql, args, alias + ".created_at>=?", start(f.from()));
-        if (f.to() != null) add(sql, args, alias + ".created_at<?", start(f.to().plusDays(1)));
+        LocalDate from = f.from(), to = f.to();
+        if (from == null && to == null) {
+            from = LocalDate.now(zone).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+            to = from.plusDays(6);
+        }
+        if (from != null) add(sql, args, alias + ".created_at>=?", start(from));
+        if (to != null) add(sql, args, alias + ".created_at<?", start(to.plusDays(1)));
         if (f.productId() != null) add(sql, args, alias + ".product_id=?", f.productId());
         text(sql, args, f.product(), "p.sku", "p.name", "p.barcode");
         text(sql, args, f.operator(), "u.username", "u.display_name");
+        if (f.operatorId() != null) add(sql, args, alias + ".operator_id=?", f.operatorId());
         text(sql, args, f.document(), "m.document_no");
         if (transfer) {
             if (f.sourceSlotId() != null) add(sql, args, "t.source_slot_id=?", f.sourceSlotId());

@@ -12,8 +12,9 @@ import org.springframework.web.bind.annotation.*;
 class StockWorkspace {
     record ProductChoice(long id, String sku, String name, boolean active, String variety, Integer headCount) {}
     record SlotChoice(long id, String code, boolean active) {}
+    record OperatorChoice(long id, String displayName, boolean active) {}
     record Context(List<WarehouseDb.Slot> locations, List<ProductChoice> historyProducts,
-                   List<SlotChoice> historySlots, String zone, LocalDate today) {}
+                   List<SlotChoice> historySlots, List<OperatorChoice> historyOperators, String zone, LocalDate today) {}
     private final WarehouseDb db;
     private final Warehouses warehouses;
     private final ZoneId zone;
@@ -39,7 +40,13 @@ class StockWorkspace {
                 JOIN shelf_slots s ON s.id=m.slot_id JOIN shelves h ON h.id=s.shelf_id
                 WHERE h.warehouse_id=?
                 """ + scope + " ORDER BY s.code", (r,n) -> new SlotChoice(r.getLong("id"),r.getString("code"),r.getBoolean("active")),args);
-        return new Context(locations,products,slots,zone.getId(),LocalDate.now(zone));
+        var operators = db.jdbc.query("""
+                SELECT DISTINCT u.id,u.display_name,u.active FROM stock_movements m
+                JOIN products p ON p.id=m.product_id JOIN users u ON u.id=m.operator_id
+                WHERE p.warehouse_id=?
+                """ + scope + " ORDER BY u.display_name,u.id", (r,n) ->
+                new OperatorChoice(r.getLong("id"),r.getString("display_name"),r.getBoolean("active")),args);
+        return new Context(locations,products,slots,operators,zone.getId(),LocalDate.now(zone));
     }
 }
 
