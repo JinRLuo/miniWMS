@@ -22,20 +22,23 @@ class StockWorkspace {
         this.db = db; this.warehouses = warehouses; this.zone = ZoneId.of(zone);
     }
 
-    Context get(long warehouseId, long actor) {
+    Context get(long warehouseId, Accounts.Principal actor) {
         warehouses.get(warehouseId);
         var locations = db.slots(warehouseId).stream().filter(slot -> slot.active() && slot.productId() != null).toList();
+        boolean ownOnly = actor.role() != Accounts.Role.ADMIN;
+        String scope = ownOnly ? " AND m.operator_id=?" : "";
+        Object[] args = ownOnly ? new Object[]{warehouseId, actor.id()} : new Object[]{warehouseId};
         var products = db.jdbc.query("""
                 SELECT DISTINCT p.id,p.sku,p.name,p.active,p.variety,p.head_count
                 FROM stock_movements m JOIN products p ON p.id=m.product_id
-                WHERE p.warehouse_id=? AND m.operator_id=? ORDER BY p.sku
-                """, (r,n) -> new ProductChoice(r.getLong("id"),r.getString("sku"),r.getString("name"),
-                r.getBoolean("active"),r.getString("variety"),r.getObject("head_count",Integer.class)),warehouseId,actor);
+                WHERE p.warehouse_id=?
+                """ + scope + " ORDER BY p.sku", (r,n) -> new ProductChoice(r.getLong("id"),r.getString("sku"),r.getString("name"),
+                r.getBoolean("active"),r.getString("variety"),r.getObject("head_count",Integer.class)),args);
         var slots = db.jdbc.query("""
                 SELECT DISTINCT s.id,s.code,s.active FROM stock_movements m
                 JOIN shelf_slots s ON s.id=m.slot_id JOIN shelves h ON h.id=s.shelf_id
-                WHERE h.warehouse_id=? AND m.operator_id=? ORDER BY s.code
-                """, (r,n) -> new SlotChoice(r.getLong("id"),r.getString("code"),r.getBoolean("active")),warehouseId,actor);
+                WHERE h.warehouse_id=?
+                """ + scope + " ORDER BY s.code", (r,n) -> new SlotChoice(r.getLong("id"),r.getString("code"),r.getBoolean("active")),args);
         return new Context(locations,products,slots,zone.getId(),LocalDate.now(zone));
     }
 }
@@ -48,6 +51,6 @@ class StockWorkspaceApi {
     @GetMapping
     StockWorkspace.Context get(@RequestParam(defaultValue="1") long warehouseId,
                               @AuthenticationPrincipal Accounts.Principal actor) {
-        return workspace.get(warehouseId,actor.id());
+        return workspace.get(warehouseId,actor);
     }
 }

@@ -40,6 +40,7 @@ test('a failed data load still selects the current navigation tab', async () => 
 
 test('settings opens as a regular page and never changes a tab selection', async () => {
   const config = require('../app/app.json')
+  assert.equal(config.pages[0], 'pages/login/index')
   assert.ok(config.pages.includes('pages/settings/index'))
   assert.ok(!config.tabBar.list.some(tab => tab.pagePath === 'pages/settings/index'))
   const destinations = []
@@ -51,4 +52,8 @@ test('settings opens as a regular page and never changes a tab selection', async
   page.getTabBar = () => assert.fail('A secondary page must not access the tab bar')
   await page.onShow()
   assert.equal(page.data.unit, 'GRAM')
+  for (const name of ['login', 'pending', 'settings']) {
+    const template = fs.readFileSync(path.join(__dirname, '../app/pages', name, 'index.wxml'), 'utf8')
+    assert.doesNotMatch(template, /bindtap="(?:login|logout)"|退出登录/)
+  }
 })

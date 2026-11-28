@@ -1,12 +1,12 @@
 {
   "pages": [
+    "pages/login/index",
     "pages/home/index",
     "pages/operations/index",
     "pages/inventory/index",
     "pages/history/index",
     "pages/settings/index",
-    "pages/pending/index",
-    "pages/login/index"
+    "pages/pending/index"
   ],
   "window": {
     "navigationBarTitleText": "Mini WMS",

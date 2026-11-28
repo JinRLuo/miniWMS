@@ -7,7 +7,6 @@
     <view class="notice">当前账号尚无仓库权限。请将账号编号告知管理员，在电脑端「账号管理」找到你的账号，分配角色并授权。</view>
     <view class="error" wx:if="{{error}}">{{error}}</view>
     <button class="primary" bindtap="refresh" disabled="{{busy}}" loading="{{busy}}">刷新授权状态</button>
-    <button class="plain" bindtap="logout" disabled="{{busy}}">退出登录</button>
   </view>
   <view class="muted">授权后刷新即可进入工作台。</view>
 </view>

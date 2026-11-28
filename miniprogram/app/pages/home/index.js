@@ -16,7 +16,7 @@ Page({
     try {
       const [context, history, trend] = await Promise.all([
         api(admin ? '/reports/summary' : '/stock/context'),
-        api('/stock/movements?mine=true'),
+        api('/stock/movements?mine=' + !admin),
         admin ? api('/reports/trend?unit=' + encodeURIComponent('斤')) : Promise.resolve([]),
       ])
       if (this._version !== version) return

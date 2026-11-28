@@ -34,7 +34,7 @@ onMounted(async () => {
       return
     }
     const [series, history] = await Promise.all([
-      api<Trend[]>('/reports/trend?unit=' + encodeURIComponent(unit.value)), api<Page<Movement>>('/stock/movements' + (props.mobile ? '?mine=true' : '')),
+      api<Trend[]>('/reports/trend?unit=' + encodeURIComponent(unit.value)), api<Page<Movement>>('/stock/movements'),
     ])
     trend.value = series
     recent.value = history.rows.slice(0, 6)

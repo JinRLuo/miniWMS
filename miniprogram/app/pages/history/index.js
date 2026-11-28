@@ -1,9 +1,9 @@
 const { api, query } = require('../../utils/api')
 const { guard } = require('../../utils/page')
 const { movement } = require('../../utils/model')
-const empty = () => ({ from: '', to: '', variety: '', headCount: '', slotId: '', type: '', document: '' })
+const empty = () => ({ from: '', to: '', variety: '', headCount: '', slotId: '', type: '', operator: '', document: '' })
 Page({
-  data: { loading: true, error: '', rows: [], form: empty(), varieties: ['全部品种'], heads: ['全部头数'],
+  data: { loading: true, error: '', admin: false, rows: [], form: empty(), varieties: ['全部品种'], heads: ['全部头数'],
     slots: [{ id: '', code: '全部格子' }], types: [{ value: '', label: '全部操作' }, { value: 'IN', label: '入库' }, { value: 'OUT', label: '出库' }],
     typeIndex: 0, varietyIndex: 0, headIndex: 0, slotIndex: 0, page: 1, more: false, expanded: false },
   onShow() { this.initialize() },
@@ -12,6 +12,8 @@ Page({
     this.setData({ loading: true, error: '' })
     const app = await guard(this, 'history')
     if (!app) return
+    const admin = app.user.role === 'ADMIN'
+    this.setData({ admin })
     try {
       const context = await api('/stock/context')
       this._products = context.historyProducts
@@ -21,10 +23,11 @@ Page({
       const initial = app.historySlot
       app.historySlot = null
       const form = Object.assign({}, this.data.form)
+      if (!admin) form.operator = ''
       if (initial) form.slotId = initial
-      // Keep a selected inventory cell visible even if it has no personal history yet.
+      // Keep a selected inventory cell visible even if it has no visible history yet.
       if (form.slotId && !slots.some(slot => slot.id === form.slotId)) {
-        slots.push({ id: form.slotId, code: '所选格子（暂无本人记录）' })
+        slots.push({ id: form.slotId, code: admin ? '所选格子（暂无记录）' : '所选格子（暂无本人记录）' })
       }
       const heads = ['全部头数'].concat([...new Set(this._products.filter(product => product.variety === form.variety)
         .map(product => product.headCount).filter(value => value !== null))].sort((a, b) => a - b))
@@ -62,7 +65,7 @@ Page({
     const version = this._version = (this._version || 0) + 1
     this.setData({ loading: true, error: '' })
     try {
-      const result = await api('/stock/movements' + query(Object.assign({}, this._applied, { mine: true, page })))
+      const result = await api('/stock/movements' + query(Object.assign({}, this._applied, { mine: !this.data.admin, page })))
       if (version !== this._version) return
       this.setData({ rows: result.rows.map(row => movement(row, this._preference, this._zone)), more: result.more, page })
     } catch (error) { if (version === this._version) this.setData({ error: error.message, rows: [] }) }

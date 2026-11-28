@@ -2,11 +2,10 @@
   <view class="brand"><view class="brand-icon"><image src="/assets/icons/warehouse-white.png" mode="aspectFit" /></view><text>Mini WMS</text></view>
   <view class="intro"><view class="eyebrow">WAREHOUSE, SIMPLIFIED</view><view class="title">鱼胶库存<view>随手掌握。</view></view><view class="subtitle">扫码定位格子，轻松完成每一笔出入库。</view></view>
   <view class="card">
-    <view class="section-title mb">微信登录仓库</view>
-    <view class="notice" wx:if="{{notice}}">{{notice}}</view>
-    <view class="login-description">使用微信身份登录。首次登录后，需由管理员授予仓库权限才能使用。</view>
+    <view class="section-title mb">{{error ? '暂时无法连接' : '正在连接仓库'}}</view>
+    <view class="login-description">{{busy ? '正在自动验证微信身份，请稍候…' : '使用微信身份自动登录。首次使用需由管理员授予仓库权限。'}}</view>
     <view class="error" wx:if="{{error}}">{{error}}</view>
-    <button class="primary" bindtap="login" loading="{{busy}}" disabled="{{busy}}">微信登录</button>
+    <button wx:if="{{error}}" class="primary" bindtap="connect" disabled="{{busy}}">重新连接</button>
   </view>
-  <view class="footer">微信身份认证 · 管理员授权后使用</view>
+  <view class="footer">微信身份自动认证 · 管理员授权后使用</view>
 </view>

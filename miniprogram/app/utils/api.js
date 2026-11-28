@@ -41,7 +41,7 @@ function saveCookies(response) {
   wx.setStorageSync(storageKey, cookies)
 }
 
-function transport(path, data, method = 'GET', headers = {}) {
+function transport(path, data, method = 'GET', headers = {}, notifyExpired = true) {
   const currentGeneration = generation
   return new Promise((resolve, reject) => {
     wx.request({
@@ -54,7 +54,7 @@ function transport(path, data, method = 'GET', headers = {}) {
         const status = response.statusCode
         if (status >= 200 && status < 300) { resolve(status === 204 ? undefined : response.data); return }
         if (status === 403) csrf = ''
-        if (status === 401 && !['/auth/login', '/auth/wechat/login'].includes(path)) { clearSession(); expired() }
+        if (status === 401 && !['/auth/login', '/auth/wechat/login'].includes(path)) { clearSession(); if (notifyExpired) expired() }
         const code = response.data && response.data.code
         if (status === 403 && code === 'ACCOUNT_PENDING') pending()
         const message = path === '/auth/wechat/login' && status === 401
@@ -97,6 +97,8 @@ async function api(path, body, method = body === undefined ? 'GET' : 'POST', for
 
 module.exports = {
   api, query, ApiError, clearSession,
+  // Startup probes may recover a missing session without navigating away mid-login.
+  restoreSession() { return transport('/auth/me', undefined, 'GET', {}, false) },
   setWarehouse(id) { warehouseId = id },
   onExpired(handler) { expired = handler },
   onPending(handler) { pending = handler },

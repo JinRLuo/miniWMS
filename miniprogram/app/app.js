@@ -1,4 +1,4 @@
-const { api, clearSession, setWarehouse, onExpired, onPending } = require('./utils/api')
+const { api, restoreSession, clearSession, setWarehouse, onExpired, onPending } = require('./utils/api')
 const { entryToken } = require('./utils/model')
 
 App({
@@ -13,6 +13,7 @@ App({
     onPending(() => this.openPending())
   },
   onShow(options) {
+    if (!this._initializing) this._ready = null
     try {
       const token = entryToken(options)
       if (token) {
@@ -22,18 +23,29 @@ App({
     } catch (error) { this.entryError = error.message }
   },
   ready() {
+    if (this._initializing) return this._initializing
     if (!this._ready) {
-      this._ready = (async () => {
-        this.user = await api('/auth/me')
-        if (!this.user.wechatBound) {
-          clearSession()
-          this.expire('请使用微信登录')
-          throw new Error('请使用微信登录')
+      const request = (async () => {
+        let user
+        try { user = await restoreSession() }
+        catch (error) {
+          if (error.status !== 401) throw error
+          user = await this.authenticate()
         }
-        if (this.user.approved !== false) await this.loadSettings()
+        // A browser password session must never grant access to a different WeChat identity.
+        if (!user.wechatBound) user = await this.authenticate()
+        this.user = user
+        if (user.approved !== false) {
+          try { await this.loadSettings() }
+          catch (error) { if (error.code !== 'ACCOUNT_PENDING') throw error }
+        }
         else { this.warehouse = null; setWarehouse(null) }
         return this.user
-      })().catch(error => { this._ready = null; throw error })
+      })().catch(error => {
+        if (this._ready === request) this._ready = null
+        throw error
+      }).finally(() => { if (this._initializing === request) this._initializing = null })
+      this._ready = this._initializing = request
     }
     return this._ready
   },
@@ -45,16 +57,14 @@ App({
     this.preferences = preferences
     setWarehouse(warehouse.id)
   },
-  async login() {
+  async authenticate() {
+    clearSession()
+    this.user = null; this.warehouse = null; this.preferences = { weightUnit: 'JIN' }
     const loginCode = await new Promise((resolve, reject) => wx.login({
       success(result) { result.code ? resolve(result.code) : reject(new Error('未获得微信登录凭证，请重试')) },
       fail() { reject(new Error('微信登录失败，请稍后重试')) },
     }))
-    clearSession()
-    this.user = null; this.warehouse = null
-    this._ready = null
     this.user = await api('/auth/wechat/login', { loginCode })
-    if (this.user.approved !== false) await this.ready()
     return this.user
   },
   destination() {
@@ -62,7 +72,7 @@ App({
       this.operation ? '/pages/operations/index' : '/pages/home/index'
   },
   async refreshAccess() {
-    this._ready = null
+    if (!this._initializing) this._ready = null
     return this.ready()
   },
   openPending() {
@@ -74,19 +84,13 @@ App({
       wx.reLaunch({ url: '/pages/pending/index' })
     }
   },
-  expire(notice = '登录已过期，请重新登录') {
+  expire() {
     this.user = null; this.warehouse = null; this.preferences = { weightUnit: 'JIN' }; this._ready = null
-    this.loginNotice = notice
+    setWarehouse(null)
     const pages = getCurrentPages()
     if (!pages.length || pages[pages.length - 1].route !== 'pages/login/index') {
       wx.reLaunch({ url: '/pages/login/index' })
     }
-  },
-  async logout() {
-    await api('/auth/logout', undefined, 'POST')
-    clearSession()
-    this.operation = null; this.historySlot = null
-    this.expire('')
   },
   openOperation(options) {
     this.operation = options

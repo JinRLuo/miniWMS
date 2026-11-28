@@ -112,7 +112,7 @@ test('native client against an isolated Spring backend: session, units, retry, Q
     await history.initialize()
     assert.ok(history.data.rows.length > 0)
     await api('/admin/users', { username: 'mp-smoke-operator', displayName: '小程序验收操作员', role: 'OPERATOR', active: true, password: 'operator-demo-2026' })
-    await app.logout()
+    await api('/auth/logout', undefined, 'POST')
     await fixtureLogin('mp-smoke-operator', 'operator-demo-2026')
     const start = requests.length
     await home.load()
@@ -137,5 +137,5 @@ test('native client against an isolated Spring backend: session, units, retry, Q
     assert.ok(redirects > 0)
     await fixtureLogin('mp-smoke-operator', 'operator-updated-2026')
     assert.equal(app.user.role, 'OPERATOR')
-    await app.logout()
+    await api('/auth/logout', undefined, 'POST')
   })

@@ -304,7 +304,7 @@ onBeforeUnmount(() => {
           <StockForm v-else-if="page === 'operations'" :key="operationKey" :slots="slots" :products="products" :warehouse="warehouse" :mobile="mobile" :initial-slot-id="initialSlotId" :initial-mode="preset" :token="token" @changed="refresh" />
           <CatalogView v-else-if="isAdmin && ['products', 'shelves', 'inventory'].includes(page)" :page="page" :products="products" :shelves="shelves"
             :slots="slots" :warehouse="warehouse" :user="user" :mobile="mobile" @changed="refresh" @history="openHistory" @stock="openStock" />
-          <History v-else-if="page === 'history'" :warehouse="warehouse" :zone="workspaceInfo.zone" :mobile="mobile" :own-only="!isAdmin || mobile" :initial-slot="historySlot" :products="historyProducts" :slots="historySlots" />
+          <History v-else-if="page === 'history'" :warehouse="warehouse" :zone="workspaceInfo.zone" :mobile="mobile" :own-only="!isAdmin" :initial-slot="historySlot" :products="historyProducts" :slots="historySlots" />
           <Reports v-else-if="isAdmin && page === 'reports' && summary" :catalog="products" :slots="slots" :warehouse="warehouse" :today="summary.today" :units="summary.units.map(u => u.unit)" />
           <Users v-else-if="page === 'users' && user.role === 'ADMIN'" @changed="refreshUser" />
           <Settings v-else-if="page === 'settings'" :preferences="preferences" @saved="preferences = $event" @password-changed="passwordChanged" />

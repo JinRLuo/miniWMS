@@ -18,11 +18,4 @@ Page({
     } catch (error) { this.setData({ error: error.message }) }
     finally { this.setData({ busy: false }) }
   },
-  async logout() {
-    if (this.data.busy) return
-    this.setData({ busy: true, error: '' })
-    try { await getApp().logout() }
-    catch (error) { this.setData({ error: error.message }) }
-    finally { this.setData({ busy: false }) }
-  },
 })

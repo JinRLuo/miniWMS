@@ -83,6 +83,17 @@ class OperatorAccessTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.rows").isEmpty());
         mvc.perform(get("/api/stock/movements").session(login("admin","test-admin-password")).param("warehouseId","2").param("operator",second.username()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.rows.length()").value(2));
+        var administrator=login("admin","test-admin-password");
+        mvc.perform(get("/api/stock/movements").session(administrator).param("warehouseId","2").param("slotId",String.valueOf(f.slot())))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rows.length()").value(2));
+        var allChoices=json.readTree(mvc.perform(get("/api/stock/context").session(administrator).param("warehouseId","2"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+        var products=new java.util.ArrayList<Long>();
+        allChoices.get("historyProducts").forEach(value->products.add(value.get("id").asLong()));
+        assertThat(products).contains(f.product(),other.product());
+        var slots=new java.util.ArrayList<Long>();
+        allChoices.get("historySlots").forEach(value->slots.add(value.get("id").asLong()));
+        assertThat(slots).contains(f.slot(),other.slot());
         var context=json.readTree(mvc.perform(get("/api/stock/context").session(own).param("warehouseId","2"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
         assertThat(context.get("historyProducts").size()).isEqualTo(1);
